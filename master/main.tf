@@ -219,37 +219,3 @@ output "verification_steps" {
        qm set 4000 --agent enabled=1,fstrim_cloned_disks=1
   EOT
 }
-
-# Переменные
-variable "pm_api_url" {
-  description = "URL API Proxmox"
-  type        = string
-}
-
-variable "pm_api_token_id" {
-  description = "ID токена API Proxmox"
-  type        = string
-  sensitive   = true
-}
-
-variable "pm_api_token_secret" {
-  description = "Секрет токена API Proxmox"
-  type        = string
-  sensitive   = true
-}
-
-variable "target_node" {
-  description = "Имя ноды Proxmox"
-  type        = string
-}
-
-variable "ssh_public_key_path" {
-  description = "Путь к публичному SSH ключу"
-  type        = string
-}
-
-variable "ssh_private_key_path" {
-  description = "Путь к приватному SSH ключу"
-  type        = string
-  sensitive   = true
-}
