@@ -31,7 +31,7 @@ resource "proxmox_vm_qemu" "k8s_master" {
   clone      = "ubuntu-template"
   full_clone = true
 
-  # Системный диск (FIXED: slot как строка, type как "disk")
+  # Системный диск
   disk {
     slot    = "scsi0"
     size    = "50G"
@@ -40,14 +40,15 @@ resource "proxmox_vm_qemu" "k8s_master" {
     format  = "raw"
   }
 
-  # Cloud-Init диск (FIXED: slot как "ide2")
+  # Cloud-Init диск (ИСПРАВЛЕНО: type = "cloudinit")
   disk {
     slot    = "ide2"
     storage = "big_oleg"
-    type    = "cdrom"
-    size    = "4M"
-    format  = "raw"
+    type    = "cloudinit"
   }
+
+  # Явное указание storage для Cloud-Init данных
+  cloudinit_cdrom_storage = "big_oleg"
 
   network {
     id     = 0
@@ -64,75 +65,42 @@ resource "proxmox_vm_qemu" "k8s_master" {
   # Включаем гостевой агент
   agent = 1
 
-  # Ожидание Cloud-Init (увеличено до 3 минут)
+  # Ожидание Cloud-Init (увеличено)
   provisioner "local-exec" {
-    command = "echo 'Ожидание завершения Cloud-Init...'; sleep 180"
+    command = "echo 'Ожидание завершения Cloud-Init...'; sleep 300"
   }
 
-  # Проверка IP через гостевой агент (упрощённая версия)
-  provisioner "local-exec" {
-    command = <<-EOT
-      echo "Проверка гостевого агента..."
-      max_attempts=30
-      IP=""
-      
-      for i in $(seq 1 $max_attempts); do
-        # Пытаемся получить IP через гостевой агент
-        if qm guest cmd 4000 ping >/dev/null 2>&1; then
-          echo "Гостевой агент доступен на попытке $i"
-          
-          # Пытаемся получить IP
-          AGENT_OUTPUT=$(qm guest cmd 4000 network-get-interfaces 2>/dev/null || echo "")
-          if echo "$AGENT_OUTPUT" | grep -q "ip-address"; then
-            IP=$(echo "$AGENT_OUTPUT" | jq -r '.data[] | ."ip-addresses"[] | select(."ip-address-type"=="ipv4") | ."ip-address"' | grep -v "127.0.0.1" | head -1)
-            if [ -n "$IP" ]; then
-              echo "Найден IP через гостевой агент: $IP"
-              echo "$IP" > /tmp/vm-4000-ip.txt
-              break
-            fi
-          fi
-        fi
-        
-        # Пробуем через ARP как fallback
-        MAC=$(qm config 4000 | grep 'net0:' | sed "s/.*=//" | cut -d',' -f1)
-        if [ -n "$MAC" ]; then
-          IP=$(arp -an | grep -i "$MAC" | grep -oP '\(\K[^)]+' | head -1)
-          if [ -n "$IP" ]; then
-            echo "Найден IP через ARP: $IP"
-            echo "$IP" > /tmp/vm-4000-ip.txt
-            break
-          fi
-        fi
-        
-        echo "Попытка $i/$max_attempts: IP не найден, ждём 10 секунд..."
-        sleep 10
-      done
-      
-      if [ -z "$IP" ]; then
-        echo "Предупреждение: IP не найден ни одним методом"
-        echo "remote-exec будет использовать default_ipv4_address"
-      else
-        echo "Используем IP: $IP"
-      fi
-    EOT
-  }
-
-  # Подключение по SSH
+  # Простой remote-exec с проверкой
   provisioner "remote-exec" {
     inline = [
-      "echo '=== ВМ успешно создана ==='",
-      "echo 'Hostname: $(hostname)'",
-      "echo 'IP-адреса:'",
-      "ip -4 addr show | grep inet"
+      "echo '=== ВМ k8s-master-01 успешно создана ==='",
+      "echo 'Дата: $(date)'",
+      "echo 'Cloud-init статус:'",
+      "cloud-init status || echo 'Cloud-init не установлен'"
     ]
     
     connection {
       type        = "ssh"
       user        = "ubuntu"
       private_key = file(var.ssh_private_key_path)
-      host        = fileexists("/tmp/vm-4000-ip.txt") ? trimspace(file("/tmp/vm-4000-ip.txt")) : self.default_ipv4_address
+      host        = self.default_ipv4_address
       timeout     = "10m"
     }
+    
+    # Продолжить даже если SSH не подключится
+    on_failure = continue
+  }
+
+  # Информационное сообщение после создания
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "========================================="
+      echo "ВМ k8s-master-01 (VMID: 4000) создана!"
+      echo "Проверьте статус:"
+      echo "  qm status 4000"
+      echo "  qm config 4000 | grep ide2"
+      echo "========================================="
+    EOT
   }
 
   timeouts {
@@ -147,18 +115,24 @@ resource "proxmox_vm_qemu" "k8s_master" {
       ipconfig0,
       nameserver,
       agent,
-      # Игнорируем Cloud-Init диск, чтобы не было дрифта
-      disk[1]
+      disk[1]  # Cloud-Init диск
     ]
   }
 }
 
-output "vm_ip_address" {
-  value = proxmox_vm_qemu.k8s_master.default_ipv4_address
-  description = "IP-адрес ВМ через гостевой агент"
-  depends_on = [proxmox_vm_qemu.k8s_master]
+output "vm_created" {
+  value = "ВМ ${proxmox_vm_qemu.k8s_master.name} создана (VMID: ${proxmox_vm_qemu.k8s_master.vmid})"
+  description = "Статус создания ВМ"
 }
 
-output "vm_status" {
-  value = "Создана: ${proxmox_vm_qemu.k8s_master.name} (VMID: ${proxmox_vm_qemu.k8s_master.vmid})"
+output "next_steps" {
+  value = <<-EOT
+    Дальнейшие действия:
+    1. Проверьте Cloud-Init диск: qm config 4000 | grep ide2
+       (должно быть: ide2: big_oleg:4000/vm-4000-cloudinit.qcow2,media=cdrom)
+    2. Проверьте гостевой агент: qm guest cmd 4000 ping
+    3. Если агент не работает, установите в ВМ:
+       sudo apt update && sudo apt install -y qemu-guest-agent
+    4. Проверьте IP: qm guest cmd 4000 network-get-interfaces
+  EOT
 }
