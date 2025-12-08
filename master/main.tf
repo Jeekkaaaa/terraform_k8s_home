@@ -29,12 +29,14 @@ resource "proxmox_vm_qemu" "k8s_master" {
   full_clone = true
 
   disk {
+    slot    = 0
     size    = "50G"
     storage = "big_oleg"
     type    = "scsi"
   }
 
   network {
+    id     = 0
     model  = "virtio"
     bridge = "vmbr0"
   }
