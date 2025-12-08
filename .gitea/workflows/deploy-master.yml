@@ -3,20 +3,33 @@ on: [push]
 
 jobs:
   terraform-deploy:
-    runs-on: [ubuntu-22.04]
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Terraform with Proxmox provider v3+
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
 
       - name: Clean Terraform Cache
         run: |
           cd master/
           rm -rf .terraform .terraform.lock.hcl
 
-      - name: Terraform Init & Plan
+      - name: Terraform Init
         run: |
           cd master/
-          terraform init
+          terraform init -upgrade
+        env:
+          TF_VAR_pm_api_url: ${{ secrets.PM_API_URL }}
+          TF_VAR_pm_api_token_id: ${{ secrets.PM_API_TOKEN_ID }}
+          TF_VAR_pm_api_token_secret: ${{ secrets.PM_API_TOKEN_SECRET }}
+
+      - name: Terraform Plan
+        run: |
+          cd master/
           terraform plan -input=false -out=tfplan
         env:
           TF_VAR_pm_api_url: ${{ secrets.PM_API_URL }}
