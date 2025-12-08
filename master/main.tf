@@ -40,7 +40,7 @@ resource "proxmox_vm_qemu" "k8s_master" {
     format  = "raw"
   }
 
-  # Cloud-Init диск (важно: используем cloud-init тип)
+  # Cloud-Init диск
   disk {
     slot    = "ide2"
     storage = "big_oleg"
@@ -59,8 +59,8 @@ resource "proxmox_vm_qemu" "k8s_master" {
   ipconfig0  = "ip=dhcp"
   nameserver = "8.8.8.8"
   
-  # Агент (правильный формат!)
-  agent = "enabled=1,fstrim_cloned_disks=1"
+  # Агент (число 1 для этой версии провайдера)
+  agent = 1
 
   # Контроллер SCSI как в темплейте
   scsihw = "virtio-scsi-pci"
@@ -86,10 +86,11 @@ output "vm_status" {
   value = "ВМ ${proxmox_vm_qemu.k8s_master.name} (VMID: ${proxmox_vm_qemu.k8s_master.vmid})"
 }
 
-output "check_commands" {
+output "post_create_commands" {
   value = <<-EOT
-    После создания проверьте:
-    1. qm config 4000 | grep -E "agent|ide2"
-    2. qm agent 4000 network-get-interfaces
+    После создания выполните:
+    1. qm set 4000 --agent enabled=1,fstrim_cloned_disks=1
+    2. qm reboot 4000
+    3. Проверка: qm agent 4000 network-get-interfaces
   EOT
 }
