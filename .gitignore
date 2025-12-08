@@ -1,0 +1,12 @@
+# Файлы Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Файлы с переменными и секретами
+*.tfvars
+*.tfvars.json
+
+# Локальные файлы провайдера
+*.pid

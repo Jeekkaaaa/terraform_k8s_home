@@ -1,0 +1,28 @@
+name: Terraform Deploy VM
+on: [push]
+
+jobs:
+  terraform-deploy:
+    runs-on: [self-hosted]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Terraform Init & Plan
+        run: |
+          cd master/
+          terraform init
+          terraform plan
+        env:
+          PM_API_URL: ${{ secrets.PM_API_URL }}
+          PM_API_TOKEN_ID: ${{ secrets.PM_API_TOKEN_ID }}
+          PM_API_TOKEN_SECRET: ${{ secrets.PM_API_TOKEN_SECRET }}
+
+      - name: Terraform Apply
+        run: |
+          cd master/
+          terraform apply -auto-approve
+        env:
+          PM_API_URL: ${{ secrets.PM_API_URL }}
+          PM_API_TOKEN_ID: ${{ secrets.PM_API_TOKEN_ID }}
+          PM_API_TOKEN_SECRET: ${{ secrets.PM_API_TOKEN_SECRET }}
