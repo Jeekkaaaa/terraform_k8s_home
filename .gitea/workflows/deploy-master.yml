@@ -41,15 +41,15 @@ jobs:
           terraform init
           terraform plan -input=false -out=tfplan
         env:
-          PM_API_URL: ${{ secrets.PM_API_URL }}
-          PM_API_TOKEN_ID: ${{ secrets.PM_API_TOKEN_ID }}
-          PM_API_TOKEN_SECRET: ${{ secrets.PM_API_TOKEN_SECRET }}
+          TF_VAR_pm_api_url: ${{ secrets.PM_API_URL }}
+          TF_VAR_pm_api_token_id: ${{ secrets.PM_API_TOKEN_ID }}
+          TF_VAR_pm_api_token_secret: ${{ secrets.PM_API_TOKEN_SECRET }}
 
       - name: Terraform Apply
         run: |
           cd master/
           terraform apply -input=false -auto-approve tfplan
         env:
-          PM_API_URL: ${{ secrets.PM_API_URL }}
-          PM_API_TOKEN_ID: ${{ secrets.PM_API_TOKEN_ID }}
-          PM_API_TOKEN_SECRET: ${{ secrets.PM_API_TOKEN_SECRET }}
+          TF_VAR_pm_api_url: ${{ secrets.PM_API_URL }}
+          TF_VAR_pm_api_token_id: ${{ secrets.PM_API_TOKEN_ID }}
+          TF_VAR_pm_api_token_secret: ${{ secrets.PM_API_TOKEN_SECRET }}
