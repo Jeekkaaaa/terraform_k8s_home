@@ -4,6 +4,10 @@ terraform {
       source  = "telmate/proxmox"
       version = "3.0.2-rc06"
     }
+    random = {
+      source = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }
 
@@ -14,12 +18,40 @@ provider "proxmox" {
   pm_tls_insecure     = true
 }
 
+provider "random" {}
+
+# Генерация случайного MAC-адреса
+resource "random_integer" "mac_part1" {
+  min = 0
+  max = 255
+}
+
+resource "random_integer" "mac_part2" {
+  min = 0
+  max = 255
+}
+
+resource "random_integer" "mac_part3" {
+  min = 0
+  max = 255
+}
+
+# Генерация случайного VMID (4000-4099)
+resource "random_integer" "vmid_offset" {
+  min = 0
+  max = 99
+  keepers = {
+    # Меняем VMID при каждом запуске
+    timestamp = timestamp()
+  }
+}
+
 # Основная ВМ
 resource "proxmox_vm_qemu" "k8s_master" {
-  name        = "k8s-master-01"
+  name        = "k8s-master-${random_integer.vmid_offset.result}"
   target_node = var.target_node
-  vmid        = 4000
-  description = "Первая мастер-нода кластера Kubernetes"
+  vmid        = 4000 + random_integer.vmid_offset.result
+  description = "Мастер-нода кластера Kubernetes (случайный MAC)"
   start_at_node_boot = true
 
   cpu {
@@ -48,10 +80,16 @@ resource "proxmox_vm_qemu" "k8s_master" {
     type    = "cloudinit"
   }
 
+  # Сеть со случайным MAC-адресом
   network {
     id     = 0
     model  = "virtio"
     bridge = "vmbr0"
+    # Случайный MAC-адрес (формат QEMU: 52:54:00:xx:xx:xx)
+    macaddr = format("52:54:00:%02x:%02x:%02x",
+      random_integer.mac_part1.result,
+      random_integer.mac_part2.result,
+      random_integer.mac_part3.result)
   }
 
   # Cloud-Init настройки
@@ -66,114 +104,41 @@ resource "proxmox_vm_qemu" "k8s_master" {
   # Контроллер SCSI
   scsihw = "virtio-scsi-pci"
 
-  # Шаг 1: Ожидание загрузки ВМ
+  # Ожидание DHCP
   provisioner "local-exec" {
-    command = "echo 'ВМ создана. Ожидание загрузки...' && sleep 120"
+    command = "echo 'Ждём получения IP через DHCP...' && sleep 90"
   }
 
-  # Шаг 2: Поиск IP через Proxmox API
-  provisioner "local-exec" {
-    command = <<-EOT
-      # Пытаемся получить IP через API Proxmox
-      echo "Попытка получения IP через API..."
-      
-      # Используем переменные из CI/CD
-      API_URL="${var.pm_api_url}"
-      TOKEN_ID="${var.pm_api_token_id}"
-      TOKEN_SECRET="${var.pm_api_token_secret}"
-      VMID=4000
-      
-      # Ждем немного перед запросом
-      sleep 30
-      
-      # Запрос к API Proxmox для получения информации о сети
-      RESPONSE=$(curl -s -k \
-        -H "Authorization: PVEAPIToken=$TOKEN_ID=$TOKEN_SECRET" \
-        "$API_URL/api2/json/nodes/$(echo $API_URL | cut -d'/' -f4)/qemu/$VMID/agent/network-get-interfaces" \
-        2>/dev/null || echo "{}")
-      
-      # Парсим IP из JSON ответа
-      IP=$(echo "$RESPONSE" | grep -o '"192\.168\.[0-9]*\.[0-9]*"' | head -1 | tr -d '"')
-      
-      if [ -n "$IP" ]; then
-        echo "IP получен через API: $IP"
-        echo "$IP" > /tmp/vm_ip.txt
-      else
-        echo "IP через API не получен. Пробуем альтернативные методы..."
-        
-        # Альтернатива: через конфиг ВМ получаем MAC, потом ищем в ARP
-        CONFIG=$(curl -s -k \
-          -H "Authorization: PVEAPIToken=$TOKEN_ID=$TOKEN_SECRET" \
-          "$API_URL/api2/json/nodes/$(echo $API_URL | cut -d'/' -f4)/qemu/$VMID/config")
-        
-        MAC=$(echo "$CONFIG" | grep -o 'net0: [^,]*' | cut -d'=' -f2)
-        
-        if [ -n "$MAC" ]; then
-          echo "MAC адрес: $MAC"
-          # Здесь мог бы быть вызов скрипта на Proxmox хосте через SSH
-          # или использование других методов поиска IP
-        fi
-        
-        echo "IP будет получен позже через SSH/другие методы"
-      fi
-    EOT
-  }
-
-  # Шаг 3: Установка гостевого агента через SSH (если IP найден)
+  # Обновление агента через SSH
   provisioner "remote-exec" {
     inline = [
-      "echo 'Начало установки гостевого агента...'",
+      "echo 'Настройка ВМ...'",
       "sudo apt update",
-      "sudo apt install -y qemu-guest-agent",
-      "sudo systemctl enable qemu-guest-agent",
-      "sudo systemctl start qemu-guest-agent",
-      "echo 'Гостевой агент установлен и запущен'",
-      "cloud-init status --wait || echo 'Cloud-init не установлен'"
+      "sudo apt install -y qemu-guest-agent 2>/dev/null || echo 'Агент уже установлен'",
+      "sudo systemctl start qemu-guest-agent 2>/dev/null || true",
+      "echo 'Готово. IP: $(hostname -I)'"
     ]
     
     connection {
       type        = "ssh"
       user        = "ubuntu"
       private_key = file(var.ssh_private_key_path)
-      host        = fileexists("/tmp/vm_ip.txt") ? file("/tmp/vm_ip.txt") : self.default_ipv4_address
+      host        = self.default_ipv4_address
       timeout     = "10m"
-      # Отключаем проверку ключей для CI/CD
       bastion_host = null
       agent        = false
-      script_path  = "/tmp/terraform_%RAND%.sh"
     }
     
-    # Если SSH не доступен, продолжаем без ошибки
     on_failure = continue
   }
 
-  # Шаг 4: Финальная проверка
+  # Очистка SSH known_hosts для нового IP
   provisioner "local-exec" {
     command = <<-EOT
-      echo "Проверка завершения настройки..."
-      
-      # Ждем немного после SSH операций
       sleep 30
-      
-      # Пытаемся проверить агент через API
-      API_URL="${var.pm_api_url}"
-      TOKEN_ID="${var.pm_api_token_id}"
-      TOKEN_SECRET="${var.pm_api_token_secret}"
-      
-      RESPONSE=$(curl -s -k \
-        -H "Authorization: PVEAPIToken=$TOKEN_ID=$TOKEN_SECRET" \
-        "$API_URL/api2/json/nodes/$(echo $API_URL | cut -d'/' -f4)/qemu/4000/agent/network-get-interfaces" \
-        2>/dev/null)
-      
-      if echo "$RESPONSE" | grep -q "ip-address"; then
-        echo "✅ Гостевой агент работает!"
-        IP=$(echo "$RESPONSE" | grep -o '"192\.168\.[0-9]*\.[0-9]*"' | head -1 | tr -d '"')
-        echo "IP ВМ: $IP"
-      else
-        echo "⚠️ Агент может не работать. Проверьте через VNC/консоль"
-        echo "Команды для проверки на Proxmox хосте:"
-        echo "  qm config 4000 | grep agent"
-        echo "  qm guest cmd 4000 ping"
+      if [ -n "${self.default_ipv4_address}" ]; then
+        ssh-keygen -f '/root/.ssh/known_hosts' -R "${self.default_ipv4_address}" 2>/dev/null || true
+        echo "Очищен known_hosts для ${self.default_ipv4_address}"
       fi
     EOT
   }
@@ -190,8 +155,14 @@ resource "proxmox_vm_qemu" "k8s_master" {
       ipconfig0,
       nameserver,
       agent,
-      disk[1]
+      disk[1],
+      # Игнорируем изменения MAC и VMID после создания
+      network[0].macaddr,
+      vmid
     ]
+    
+    # Принудительно пересоздаём при изменении VMID
+    create_before_destroy = true
   }
 }
 
@@ -200,22 +171,25 @@ output "vm_info" {
   value = "ВМ ${proxmox_vm_qemu.k8s_master.name} (VMID: ${proxmox_vm_qemu.k8s_master.vmid})"
 }
 
+output "vm_mac" {
+  value = proxmox_vm_qemu.k8s_master.network[0].macaddr
+  description = "MAC-адрес ВМ"
+}
+
 output "vm_ip" {
   value = proxmox_vm_qemu.k8s_master.default_ipv4_address
-  description = "IP адрес через гостевой агент"
+  description = "IP адрес через DHCP"
 }
 
-output "ssh_connection" {
-  value = "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ubuntu@${proxmox_vm_qemu.k8s_master.default_ipv4_address}"
+output "ssh_command" {
+  value = "ssh -o StrictHostKeyChecking=no ubuntu@${proxmox_vm_qemu.k8s_master.default_ipv4_address}"
 }
 
-output "verification_steps" {
+output "verification" {
   value = <<-EOT
-    Действия после создания:
-    1. Если SSH недоступен - проверьте через VNC консоль
-    2. Установите агент вручную если нужно:
-       sudo apt update && sudo apt install -y qemu-guest-agent
-    3. Обновите формат агента на Proxmox хосте (если требуется):
-       qm set 4000 --agent enabled=1,fstrim_cloned_disks=1
+    Проверка:
+    1. Агент: qm agent ${proxmox_vm_qemu.k8s_master.vmid} network-get-interfaces
+    2. Конфиг: qm config ${proxmox_vm_qemu.k8s_master.vmid} | grep -E 'net0|agent'
+    3. SSH: ssh -o StrictHostKeyChecking=no ubuntu@${proxmox_vm_qemu.k8s_master.default_ipv4_address}
   EOT
 }
