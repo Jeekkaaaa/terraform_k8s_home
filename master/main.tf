@@ -2,7 +2,7 @@
 terraform {
   required_providers {
     proxmox = {
-      source  = "telmate/proxmox" # Явно указываем правильный источник
+      source  = "telmate/proxmox"
       version = "~> 2.9.14"
     }
   }
@@ -23,14 +23,11 @@ resource "proxmox_vm_qemu" "k8s_master" {
   memory  = 8192
 
   # 3. КЛЮЧЕВОЕ: Клонирование из шаблона (ID 9000)
-  clone {
-    vm_id = 9000
-    full  = true
-  }
+  clone      = "9000"
+  full_clone = true
 
   # 4. Дополнительные настройки диска
   disk {
-    slot    = 0
     size    = "50G"
     storage = "big_oleg"
     type    = "scsi"
@@ -38,7 +35,6 @@ resource "proxmox_vm_qemu" "k8s_master" {
 
   # 5. Сеть
   network {
-    id     = 0
     model  = "virtio"
     bridge = "vmbr0"
   }
