@@ -39,33 +39,29 @@ resource "random_integer" "mac_part3" {
 # Функция для поиска свободного VMID
 data "external" "next_vmid" {
   program = ["bash", "-c", <<-EOT
-    # Получаем список существующих VMID
-    existing_vmids=$(pvesh get /cluster/resources --type vm 2>/dev/null | grep '"vmid"' | grep -o '[0-9]*' || echo "")
-    
-    # Начинаем поиск с 4000
     base_id=4000
     max_id=4099
     
-    # Проверяем последовательно ID от base_id до max_id
+    # Проверяем через qm list (проще чем pvesh)
     for i in $(seq $base_id $max_id); do
-      if ! echo "$existing_vmids" | grep -q "^${i}$"; then
+      if ! qm status $i 2>/dev/null; then
         echo "{\"next_vmid\": \"$i\"}"
         exit 0
       fi
     done
     
-    # Если все заняты, генерируем случайный
-    random_id=$(( base_id + RANDOM % (max_id - base_id + 1) ))
-    echo "{\"next_vmid\": \"$random_id\"}"
+    # Если все заняты, берем следующий после максимального
+    last_id=$(qm list | tail -n +2 | awk '{print $1}' | sort -n | tail -1)
+    next_id=$((last_id + 1))
+    
+    # Если next_id выходит за пределы диапазона, берем случайный
+    if [ $next_id -gt $max_id ]; then
+      next_id=$(( base_id + RANDOM % (max_id - base_id + 1) ))
+    fi
+    
+    echo "{\"next_vmid\": \"$next_id\"}"
   EOT
 ]
-
-  # Запускать заново при каждом планировании
-  lifecycle {
-    replace_triggered_by = [
-      timestamp() # Принудительное обновление при каждом запуске
-    ]
-  }
 }
 
 # Основная ВМ
@@ -185,32 +181,4 @@ resource "proxmox_vm_qemu" "k8s_master" {
     # Принудительно пересоздаём при изменении VMID
     create_before_destroy = true
   }
-}
-
-# Output переменные
-output "vm_info" {
-  value = "ВМ ${proxmox_vm_qemu.k8s_master.name} (VMID: ${proxmox_vm_qemu.k8s_master.vmid})"
-}
-
-output "vm_mac" {
-  value = proxmox_vm_qemu.k8s_master.network[0].macaddr
-  description = "MAC-адрес ВМ"
-}
-
-output "vm_ip" {
-  value = proxmox_vm_qemu.k8s_master.default_ipv4_address
-  description = "IP адрес через DHCP"
-}
-
-output "ssh_command" {
-  value = "ssh -o StrictHostKeyChecking=no ubuntu@${proxmox_vm_qemu.k8s_master.default_ipv4_address}"
-}
-
-output "verification" {
-  value = <<-EOT
-    Проверка:
-    1. Агент: qm agent ${proxmox_vm_qemu.k8s_master.vmid} network-get-interfaces
-    2. Конфиг: qm config ${proxmox_vm_qemu.k8s_master.vmid} | grep -E 'net0|agent'
-    3. SSH: ssh -o StrictHostKeyChecking=no ubuntu@${proxmox_vm_qemu.k8s_master.default_ipv4_address}
-  EOT
 }
