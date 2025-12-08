@@ -1,11 +1,13 @@
 terraform {
+  required_version = ">= 1.0"
+  
   required_providers {
     proxmox = {
       source  = "telmate/proxmox"
       version = "3.0.2-rc06"
     }
     random = {
-      source = "hashicorp/random"
+      source  = "hashicorp/random"
       version = "~> 3.6"
     }
   }
@@ -18,9 +20,7 @@ provider "proxmox" {
   pm_tls_insecure     = true
 }
 
-provider "random" {}
-
-# Генерация случайного MAC-адреса
+# Генерация случайного MAC-адреса для ВМ
 resource "random_integer" "mac_part1" {
   min = 0
   max = 255
@@ -36,22 +36,44 @@ resource "random_integer" "mac_part3" {
   max = 255
 }
 
-# Генерация случайного VMID (4000-4099)
-resource "random_integer" "vmid_offset" {
-  min = 0
-  max = 99
-  keepers = {
-    # Меняем VMID при каждом запуске
-    timestamp = timestamp()
+# Функция для поиска свободного VMID
+data "external" "next_vmid" {
+  program = ["bash", "-c", <<-EOT
+    # Получаем список существующих VMID
+    existing_vmids=$(pvesh get /cluster/resources --type vm 2>/dev/null | grep '"vmid"' | grep -o '[0-9]*' || echo "")
+    
+    # Начинаем поиск с 4000
+    base_id=4000
+    max_id=4099
+    
+    # Проверяем последовательно ID от base_id до max_id
+    for i in $(seq $base_id $max_id); do
+      if ! echo "$existing_vmids" | grep -q "^${i}$"; then
+        echo "{\"next_vmid\": \"$i\"}"
+        exit 0
+      fi
+    done
+    
+    # Если все заняты, генерируем случайный
+    random_id=$(( base_id + RANDOM % (max_id - base_id + 1) ))
+    echo "{\"next_vmid\": \"$random_id\"}"
+  EOT
+]
+
+  # Запускать заново при каждом планировании
+  lifecycle {
+    replace_triggered_by = [
+      timestamp() # Принудительное обновление при каждом запуске
+    ]
   }
 }
 
 # Основная ВМ
 resource "proxmox_vm_qemu" "k8s_master" {
-  name        = "k8s-master-${random_integer.vmid_offset.result}"
+  name        = "k8s-master-${data.external.next_vmid.result.next_vmid}"
   target_node = var.target_node
-  vmid        = 4000 + random_integer.vmid_offset.result
-  description = "Мастер-нода кластера Kubernetes (случайный MAC)"
+  vmid        = tonumber(data.external.next_vmid.result.next_vmid)
+  description = "Мастер-нода кластера Kubernetes (случайный MAC, авто-VMID)"
   start_at_node_boot = true
 
   cpu {
@@ -106,7 +128,7 @@ resource "proxmox_vm_qemu" "k8s_master" {
 
   # Ожидание DHCP
   provisioner "local-exec" {
-    command = "echo 'Ждём получения IP через DHCP...' && sleep 90"
+    command = "echo 'Ждём получения IP через DHCP...' && sleep 60"
   }
 
   # Обновление агента через SSH
@@ -156,9 +178,8 @@ resource "proxmox_vm_qemu" "k8s_master" {
       nameserver,
       agent,
       disk[1],
-      # Игнорируем изменения MAC и VMID после создания
-      network[0].macaddr,
-      vmid
+      # Игнорируем изменения MAC после создания
+      network[0].macaddr
     ]
     
     # Принудительно пересоздаём при изменении VMID
