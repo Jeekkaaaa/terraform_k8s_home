@@ -8,10 +8,10 @@ terraform {
 }
 
 provider "proxmox" {
-  pm_api_url          = var.proxmox_config.api_url
-  pm_api_token_id     = var.proxmox_config.token_id
-  pm_api_token_secret = var.proxmox_config.token_secret
-  pm_tls_insecure     = var.proxmox_config.insecure
+  pm_api_url          = var.pm_api_url
+  pm_api_token_id     = var.pm_api_token_id
+  pm_api_token_secret = var.pm_api_token_secret
+  pm_tls_insecure     = true
 }
 
 locals {
@@ -41,7 +41,7 @@ locals {
 # Мастер-нода
 resource "proxmox_vm_qemu" "k8s_master" {
   name        = "k8s-master-${local.master_vmid}"
-  target_node = var.proxmox_config.node
+  target_node = var.target_node
   vmid        = local.master_vmid
   description = "Мастер-нода кластера ${var.cluster_config.cluster_name}"
   start_at_node_boot = true
