@@ -53,38 +53,39 @@ locals {
     random_integer.mac_part3.result)
   
   # Автоматический статический IP
-  master_ip = var.auto_static_ips ? 
-    cidrhost(var.network_config.subnet, var.static_ip_base + (local.master_vmid - var.vmid_ranges.masters.start)) : 
-    null
+  master_ip = var.auto_static_ips ? cidrhost(var.network_config.subnet, var.static_ip_base + (local.master_vmid - var.vmid_ranges.masters.start)) : null
   
   # IP конфигурация
-  ip_config = var.auto_static_ips ? 
-    "ip=${local.master_ip}/24,gw=${var.network_config.gateway}" : 
-    "ip=dhcp"
+  ip_config = var.auto_static_ips ? "ip=${local.master_ip}/24,gw=${var.network_config.gateway}" : "ip=dhcp"
 }
 
-# Очистка старых мастеров
-resource "null_resource" "cleanup" {
-  triggers = {
-    always_run = timestamp()
-  }
-
-  provisioner "local-exec" {
-    command = <<-EOT
-      echo "Очистка старых мастер-нод..."
-      for vmid in $(qm list | grep "k8s-master-" | awk '{print $1}'); do
-        echo "Удаляем ВМ $vmid"
-        qm stop $vmid 2>/dev/null || true
-        qm destroy $vmid --purge 2>/dev/null || true
-      done
-      sleep 5
-    EOT
-  }
-}
+# ===================================================================
+# ⚠️ ВНИМАНИЕ: БЛОК УДАЛЕНИЯ СТАРЫХ ВМ
+# Раскомментируйте этот блок если хотите автоматически удалять
+# старые мастер-ноды перед созданием новой
+# ===================================================================
+# resource "null_resource" "cleanup" {
+#   triggers = {
+#     always_run = timestamp()
+#   }
+# 
+#   provisioner "local-exec" {
+#     command = <<-EOT
+#       echo "Очистка старых мастер-нод..."
+#       for vmid in $(qm list | grep "k8s-master-" | awk '{print $1}'); do
+#         echo "Удаляем ВМ $vmid"
+#         qm stop $vmid 2>/dev/null || true
+#         qm destroy $vmid --purge 2>/dev/null || true
+#       done
+#       sleep 5
+#     EOT
+#   }
+# }
+# ===================================================================
 
 # Мастер-нода
 resource "proxmox_vm_qemu" "k8s_master" {
-  depends_on = [null_resource.cleanup]
+  # depends_on = [null_resource.cleanup]  # ⚠️ Раскомментировать вместе с блоком выше
 
   name        = "k8s-master-${local.master_vmid}"
   target_node = var.proxmox_config.node
