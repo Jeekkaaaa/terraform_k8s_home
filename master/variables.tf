@@ -1,4 +1,33 @@
-# common/variables.tf - ОБЩИЕ ПЕРЕМЕННЫЕ ДЛЯ ВСЕХ МОДУЛЕЙ
+# ============ ПЕРЕМЕННЫЕ ДЛЯ CI/CD (добавлены для совместимости) ============
+variable "pm_api_url" {
+  type        = string
+  sensitive   = true
+}
+
+variable "pm_api_token_id" {
+  type        = string
+  sensitive   = true
+}
+
+variable "pm_api_token_secret" {
+  type        = string
+  sensitive   = true
+}
+
+variable "target_node" {
+  type        = string
+  default     = "pve"
+}
+
+variable "ssh_public_key_path" {
+  type        = string
+  default     = "/root/.ssh/id_ed25519.pub"
+}
+
+variable "ssh_private_key_path" {
+  type        = string
+  default     = "/root/.ssh/id_ed25519"
+}
 
 # ==================== ПОДКЛЮЧЕНИЕ PROXMOX ====================
 variable "proxmox_config" {
