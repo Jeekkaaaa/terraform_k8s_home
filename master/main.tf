@@ -75,26 +75,39 @@ resource "proxmox_vm_qemu" "k8s_master" {
   agent = 1
   scsihw = "virtio-scsi-pci"
 
-  # КРИТИЧЕСКИ ВАЖНО: Генерируем уникальный machine-id для DHCP
+  # ========== КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ==========
+  # Разделяем на два этапа
+  
+  # Этап 1: Ждем получения первого IP
+  provisioner "local-exec" {
+    command = "echo 'Ожидание получения IP через DHCP...' && sleep 45"
+  }
+
+  # Этап 2: Настройка machine-id БЕЗ перезапуска сети
   provisioner "remote-exec" {
     inline = [
-      # Удаляем старый machine-id (если есть)
-      "sudo rm -f /etc/machine-id /var/lib/dbus/machine-id",
+      "echo 'Начинаем настройку...'",
+      "echo 'Текущий IP: $(hostname -I)'",
+      "echo 'Старый machine-id: $(cat /etc/machine-id 2>/dev/null || echo не найден)'",
       
-      # Генерируем новый уникальный machine-id
+      # Генерируем новый machine-id но НЕ перезапускаем сеть!
+      "sudo rm -f /etc/machine-id /var/lib/dbus/machine-id",
       "sudo dbus-uuidgen --ensure",
       "sudo systemd-machine-id-setup",
       
-      # Перезапускаем сеть с новым machine-id
-      "sudo systemctl restart systemd-networkd",
+      # Записываем конфигурацию для СЛЕДУЮЩЕЙ перезагрузки
+      "echo 'Настройка netplan для использования MAC как DHCP идентификатора...'",
+      "sudo cat > /etc/netplan/99-dhcp-mac.yaml << 'EOF'",
+      "network:",
+      "  version: 2",
+      "  ethernets:",
+      "    eth0:",
+      "      dhcp4: true",
+      "      dhcp-identifier: mac",
+      "EOF",
       
-      # Ждем получения IP
-      "sleep 5",
-      
-      # Показываем новый IP
-      "echo 'Новый уникальный machine-id установлен'",
-      "echo 'Текущий IP: $(hostname -I)'",
-      "echo 'Machine ID: $(cat /etc/machine-id)'"
+      "echo 'Готово. При следующей перезагрузке будет новый machine-id и MAC как DHCP ID.'",
+      "echo 'Текущий IP остался: $(hostname -I)'"
     ]
     
     connection {
@@ -105,6 +118,19 @@ resource "proxmox_vm_qemu" "k8s_master" {
       timeout     = "10m"
       agent       = false
     }
+    
+    # Продолжать даже если SSH оборвется
+    on_failure = continue
+  }
+
+  # Этап 3: Мягкая перезагрузка (опционально)
+  provisioner "local-exec" {
+    command = <<-EOT
+      echo "Мягкая перезагрузка ВМ ${self.vmid} для применения новых настроек..."
+      qm reboot ${self.vmid}
+      sleep 60
+      echo "Перезагрузка завершена"
+    EOT
   }
 
   lifecycle {
@@ -126,4 +152,18 @@ output "vm_ip" {
 
 output "ssh_command" {
   value = "ssh -o StrictHostKeyChecking=no ubuntu@${proxmox_vm_qemu.k8s_master.default_ipv4_address}"
+}
+
+output "next_steps" {
+  value = <<-EOT
+    После создания ВМ:
+    1. Проверить IP: qm guest exec ${proxmox_vm_qemu.k8s_master.vmid} -- hostname -I
+    2. Проверить machine-id: qm guest exec ${proxmox_vm_qemu.k8s_master.vmid} -- cat /etc/machine-id
+    3. Перезагрузить для получения нового IP: qm reboot ${proxmox_vm_qemu.k8s_master.vmid}
+    
+    Новая ВМ получила:
+    - Уникальный MAC: ${local.mac_address}
+    - Уникальный machine-id
+    - Netplan конфиг для использования MAC как DHCP идентификатора
+  EOT
 }
