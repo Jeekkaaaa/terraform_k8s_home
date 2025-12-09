@@ -30,18 +30,6 @@ variable "ssh_private_key_path" {
 }
 
 # ==================== ПОДКЛЮЧЕНИЕ PROXMOX ====================
-variable "proxmox_config" {
-  type = object({
-    api_url      = string
-    token_id     = string
-    token_secret = string
-    node         = string
-    storage      = string
-    insecure     = bool
-  })
-  description = "Настройки подключения к Proxmox"
-  sensitive   = true
-}
 
 # ==================== СЕТЕВЫЕ НАСТРОЙКИ ====================
 variable "network_config" {
