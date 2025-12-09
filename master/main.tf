@@ -15,26 +15,22 @@ provider "proxmox" {
 }
 
 locals {
-  # Генерация уникального VMID на основе timestamp
-  timestamp = timestamp()
-  
-  # Берем последние цифры из timestamp для VMID
-  time_seed = parseint(regex("[0-9]+", local.timestamp), 10)
-  
-  # VMID в диапазоне 4100-4199
+  # Генерация VMID (простая)
+  timestamp   = timestamp()
+  time_seed   = parseint(regex("[0-9]+", local.timestamp), 10)
   master_vmid = var.vmid_ranges.masters.start + (local.time_seed % 100)
   
-  # Генерация MAC на основе timestamp
-  mac_seed = sha256(local.timestamp)
+  # Генерация MAC (простая)
+  mac_seed    = sha256(local.timestamp)
   mac_address = format("52:54:00:%s:%s:%s",
     substr(local.mac_seed, 0, 2),
     substr(local.mac_seed, 2, 2),
     substr(local.mac_seed, 4, 2))
   
-  # Автоматический статический IP - ОДНА СТРОКА
+  # Автоматический статический IP
   master_ip = var.auto_static_ips ? cidrhost(var.network_config.subnet, var.static_ip_base + (local.master_vmid - var.vmid_ranges.masters.start)) : null
   
-  # IP конфигурация - ОДНА СТРОКА  
+  # IP конфигурация
   ip_config = var.auto_static_ips ? "ip=${local.master_ip}/24,gw=${var.network_config.gateway}" : "ip=dhcp"
 }
 
@@ -77,13 +73,13 @@ resource "proxmox_vm_qemu" "k8s_master" {
     macaddr = local.mac_address
   }
 
-  ciuser     = var.cloud_init.user
-  sshkeys    = file(pathexpand(var.cloud_init.ssh_key_path))
-  ipconfig0  = local.ip_config
-  nameserver = join(" ", var.network_config.dns_servers)
+  ciuser       = var.cloud_init.user
+  sshkeys      = file(var.ssh_public_key_path)
+  ipconfig0    = local.ip_config
+  nameserver   = join(" ", var.network_config.dns_servers)
   searchdomain = join(" ", var.cloud_init.search_domains)
   
-  agent = 1
+  agent  = 1
   scsihw = "virtio-scsi-pci"
 
   lifecycle {

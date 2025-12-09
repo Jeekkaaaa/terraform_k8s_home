@@ -8,10 +8,10 @@ terraform {
 }
 
 provider "proxmox" {
-  pm_api_url          = var.proxmox_config.api_url
-  pm_api_token_id     = var.proxmox_config.token_id
-  pm_api_token_secret = var.proxmox_config.token_secret
-  pm_tls_insecure     = var.proxmox_config.insecure
+  pm_api_url          = var.pm_api_url
+  pm_api_token_id     = var.pm_api_token_id
+  pm_api_token_secret = var.pm_api_token_secret
+  pm_tls_insecure     = true
 }
 
 # Воркер ноды
@@ -19,7 +19,7 @@ resource "proxmox_vm_qemu" "k8s_workers" {
   count = var.cluster_config.workers_count
 
   name        = "k8s-worker-${var.vmid_ranges.workers.start + count.index}"
-  target_node = var.proxmox_config.node
+  target_node = var.target_node
   vmid        = var.vmid_ranges.workers.start + count.index
   description = "Воркер-нода #${count.index + 1} кластера ${var.cluster_config.cluster_name}"
   start_at_node_boot = true
@@ -52,19 +52,15 @@ resource "proxmox_vm_qemu" "k8s_workers" {
     id      = 0
     model   = "virtio"
     bridge  = var.network_config.bridge
-    # Уникальный MAC для каждого воркера
     macaddr = format("52:54:00:aa:bb:%02x", count.index)
   }
 
-  # Автоматический статический IP для воркера
-  worker_ip = cidrhost(var.network_config.subnet, var.static_ip_base + 10 + count.index)
-
   ciuser     = var.cloud_init.user
-  sshkeys    = file(pathexpand(var.cloud_init.ssh_key_path))
-  ipconfig0  = "ip=${local.worker_ip}/24,gw=${var.network_config.gateway}"
+  sshkeys    = file(var.ssh_public_key_path)
+  ipconfig0  = var.auto_static_ips ? "ip=${cidrhost(var.network_config.subnet, var.static_ip_base + 10 + count.index)}/24,gw=${var.network_config.gateway}" : "ip=dhcp"
   nameserver = join(" ", var.network_config.dns_servers)
   
-  agent = 1
+  agent  = 1
   scsihw = "virtio-scsi-pci"
 }
 
@@ -74,7 +70,7 @@ output "workers_info" {
       name    = vm.name
       vmid    = vm.vmid
       mac     = vm.network[0].macaddr
-      ip      = cidrhost(var.network_config.subnet, var.static_ip_base + 10 + idx)
+      ip      = var.auto_static_ips ? cidrhost(var.network_config.subnet, var.static_ip_base + 10 + idx) : vm.default_ipv4_address
     }
   ]
 }
