@@ -1,6 +1,3 @@
-# variables.tf
-# ТОЛЬКО ОБЪЯВЛЕНИЯ переменных. ВСЕ значения - в config.auto.tfvars!
-
 variable "pm_api_url" {
   type = string
 }
@@ -21,8 +18,32 @@ variable "ssh_public_key_path" {
   type = string
 }
 
-variable "ssh_private_key_path" {
-  type = string
+variable "cluster_config" {
+  type = object({
+    masters_count = number
+    workers_count = number
+    cluster_name  = string
+    domain        = string
+  })
+}
+
+variable "vmid_ranges" {
+  type = object({
+    masters = object({ start = number, end = number })
+    workers = object({ start = number, end = number })
+  })
+}
+
+variable "vm_specs" {
+  type = object({
+    master = object({
+      cpu_cores    = number
+      cpu_sockets  = number
+      memory_mb    = number
+      disk_size_gb = number
+      disk_storage = string
+    })
+  })
 }
 
 variable "network_config" {
@@ -34,25 +55,10 @@ variable "network_config" {
   })
 }
 
-variable "vmid_ranges" {
+variable "cloud_init" {
   type = object({
-    masters = object({
-      start = number
-      end   = number
-    })
-    workers = object({
-      start = number
-      end   = number
-    })
-  })
-}
-
-variable "cluster_config" {
-  type = object({
-    masters_count = number
-    workers_count = number
-    cluster_name  = string
-    domain        = string
+    user           = string
+    search_domains = list(string)
   })
 }
 
@@ -62,34 +68,4 @@ variable "auto_static_ips" {
 
 variable "static_ip_base" {
   type = number
-}
-
-variable "vm_specs" {
-  type = object({
-    master = object({
-      cpu_cores          = number
-      cpu_sockets        = number
-      memory_mb          = number
-      disk_size_gb       = number
-      disk_storage       = string
-      disk_format        = string
-      cloudinit_storage  = string
-    })
-    worker = object({
-      cpu_cores          = number
-      cpu_sockets        = number
-      memory_mb          = number
-      disk_size_gb       = number
-      disk_storage       = string
-      disk_format        = string
-      cloudinit_storage  = string
-    })
-  })
-}
-
-variable "cloud_init" {
-  type = object({
-    user           = string
-    search_domains = list(string)
-  })
 }
