@@ -50,25 +50,25 @@ module "master" {
 }
 
 # Модуль воркер-нод (пока отключен - workers_count = 0)
-# module "worker" {
-#   source = "./worker"
-#   depends_on = [module.template]
-#   
-#   pm_api_url          = var.pm_api_url
-#   pm_api_token_id     = var.pm_api_token_id
-#   pm_api_token_secret = var.pm_api_token_secret
-#   
-#   target_node         = var.target_node
-#   ssh_public_key_path = var.ssh_public_key_path
-#   
-#   cluster_config      = var.cluster_config
-#   vmid_ranges         = var.vmid_ranges
-#   vm_specs            = var.vm_specs
-#   network_config      = var.network_config
-#   cloud_init          = var.cloud_init
-#   auto_static_ips     = var.auto_static_ips
-#   static_ip_base      = var.static_ip_base
-# }
+module "worker" {
+  source = "./worker"
+  depends_on = [module.template]
+  
+  pm_api_url          = var.pm_api_url
+  pm_api_token_id     = var.pm_api_token_id
+  pm_api_token_secret = var.pm_api_token_secret
+  
+  target_node         = var.target_node
+  ssh_public_key_path = var.ssh_public_key_path
+  
+  cluster_config      = var.cluster_config
+  vmid_ranges         = var.vmid_ranges
+  vm_specs            = var.vm_specs
+  network_config      = var.network_config
+  cloud_init          = var.cloud_init
+  auto_static_ips     = var.auto_static_ips
+  static_ip_base      = var.static_ip_base
+}
 
 output "template_info" {
   value = module.template.template_id
