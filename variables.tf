@@ -41,19 +41,33 @@ variable "vmid_ranges" {
 variable "vm_specs" {
   type = object({
     master = object({
-      cpu_cores    = number
-      cpu_sockets  = number
-      memory_mb    = number
-      disk_size_gb = number
-      disk_storage = string
+      cpu_cores          = number
+      cpu_sockets        = number
+      memory_mb          = number
+      disk_size_gb       = number
+      disk_storage       = string
+      disk_iothread      = number
+      cloudinit_storage  = string
     })
     worker = object({
-      cpu_cores    = number
-      cpu_sockets  = number
-      memory_mb    = number
-      disk_size_gb = number
-      disk_storage = string
+      cpu_cores          = number
+      cpu_sockets        = number
+      memory_mb          = number
+      disk_size_gb       = number
+      disk_storage       = string
+      disk_iothread      = number
+      cloudinit_storage  = string
     })
+  })
+}
+
+variable "template_specs" {
+  type = object({
+    cpu_cores    = number
+    cpu_sockets  = number
+    memory_mb    = number
+    disk_size_gb = number
+    disk_iothread = number
   })
 }
 

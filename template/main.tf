@@ -14,45 +14,42 @@ provider "proxmox" {
   pm_tls_insecure     = true
 }
 
-# Создаем шаблонную VM
 resource "proxmox_vm_qemu" "ubuntu_template" {
   name        = "ubuntu-template"
   target_node = var.target_node
   vmid        = var.template_vmid
   desc        = "Ubuntu 22.04 Cloud-Init Template (Auto-generated)"
   
-  cores   = 2
-  sockets = 1
-  memory  = 2048
+  cpu {
+    cores   = var.template_specs.cpu_cores
+    sockets = var.template_specs.cpu_sockets
+  }
   
-  # Диск
+  memory  = var.template_specs.memory_mb
+  start_at_node_boot = false
+  
   disk {
     slot     = 0
-    storage  = var.storage
     type     = "scsi"
-    size     = "12G"
+    storage  = var.storage
+    size     = "${var.template_specs.disk_size_gb}G"
+    iothread = var.template_specs.disk_iothread
   }
   
-  # Cloud-init диск
   disk {
     slot    = 2
-    storage = var.storage
     type    = "cloudinit"
+    storage = var.storage
   }
   
-  # Сеть
   network {
-    id     = 0
     model  = "virtio"
     bridge = var.bridge
   }
   
-  # Cloud-init
   ciuser  = "ubuntu"
   sshkeys = var.ssh_public_key
   
-  # Важно: ISO не указываем, создаем пустую VM
-  onboot    = false
   agent     = 1
   os_type   = "cloud-init"
   scsihw    = "virtio-scsi-single"
@@ -62,14 +59,13 @@ resource "proxmox_vm_qemu" "ubuntu_template" {
     ignore_changes = [network]
   }
   
-  # После создания превращаем в шаблон
   provisioner "local-exec" {
     command = <<-EOT
-      echo "Waiting for VM to be created..."
-      sleep 10
+      echo "Waiting for VM ${self.vmid} to be created..."
+      sleep 30
       echo "Converting VM ${self.vmid} to template..."
       qm set ${self.vmid} --template 1
+      echo "Template ${self.vmid} ready!"
     EOT
   }
 }
-

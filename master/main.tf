@@ -29,20 +29,29 @@ resource "proxmox_vm_qemu" "k8s_master" {
   clone = "ubuntu-template"
   full_clone = true
   
-  cores   = var.vm_specs.master.cpu_cores
-  sockets = var.vm_specs.master.cpu_sockets
+  cpu {
+    cores   = var.vm_specs.master.cpu_cores
+    sockets = var.vm_specs.master.cpu_sockets
+  }
+  
   memory  = var.vm_specs.master.memory_mb
-  onboot  = true
+  start_at_node_boot = true
   
   disk {
-    slot    = 0
-    size    = "${var.vm_specs.master.disk_size_gb}G"
-    storage = var.vm_specs.master.disk_storage
-    type    = "scsi"
+    slot     = 0
+    type     = "scsi"
+    storage  = var.vm_specs.master.disk_storage
+    size     = "${var.vm_specs.master.disk_size_gb}G"
+    iothread = var.vm_specs.master.disk_iothread
+  }
+  
+  disk {
+    slot    = 2
+    type    = "cloudinit"
+    storage = var.vm_specs.master.cloudinit_storage
   }
   
   network {
-    id     = 0
     model  = "virtio"
     bridge = var.network_config.bridge
   }

@@ -29,6 +29,9 @@ vm_specs = {
     memory_mb    = 4096
     disk_size_gb = 30
     disk_storage = "local-lvm"
+    # ДОБАВЛЕНО:
+    disk_iothread = 1
+    cloudinit_storage = "local-lvm"
   }
   worker = {
     cpu_cores    = 2
@@ -36,7 +39,19 @@ vm_specs = {
     memory_mb    = 2048
     disk_size_gb = 20
     disk_storage = "local-lvm"
+    # ДОБАВЛЕНО:
+    disk_iothread = 1
+    cloudinit_storage = "local-lvm"
   }
+}
+
+# Шаблон характеристики
+template_specs = {
+  cpu_cores    = 2
+  cpu_sockets  = 1
+  memory_mb    = 2048
+  disk_size_gb = 12
+  disk_iothread = 1
 }
 
 # Сеть

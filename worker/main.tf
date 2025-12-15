@@ -29,20 +29,29 @@ resource "proxmox_vm_qemu" "k8s_worker" {
   clone = "ubuntu-template"
   full_clone = true
   
-  cores   = var.vm_specs.worker.cpu_cores
-  sockets = var.vm_specs.worker.cpu_sockets
+  cpu {
+    cores   = var.vm_specs.worker.cpu_cores
+    sockets = var.vm_specs.worker.cpu_sockets
+  }
+  
   memory  = var.vm_specs.worker.memory_mb
-  onboot  = true
+  start_at_node_boot = true
   
   disk {
-    slot    = 0
-    size    = "${var.vm_specs.worker.disk_size_gb}G"
-    storage = var.vm_specs.worker.disk_storage
-    type    = "scsi"
+    slot     = 0
+    type     = "scsi"
+    storage  = var.vm_specs.worker.disk_storage
+    size     = "${var.vm_specs.worker.disk_size_gb}G"
+    iothread = var.vm_specs.worker.disk_iothread
+  }
+  
+  disk {
+    slot    = 2
+    type    = "cloudinit"
+    storage = var.vm_specs.worker.cloudinit_storage
   }
   
   network {
-    id     = 0
     model  = "virtio"
     bridge = var.network_config.bridge
   }
@@ -50,7 +59,6 @@ resource "proxmox_vm_qemu" "k8s_worker" {
   ciuser       = var.cloud_init.user
   sshkeys      = file(var.ssh_public_key_path)
   
-  # IP для воркеров начинаются после мастеров
   ipconfig0    = var.auto_static_ips ? "ip=${cidrhost(var.network_config.subnet, var.static_ip_base + var.cluster_config.masters_count + each.key)}/24,gw=${var.network_config.gateway}" : "ip=dhcp"
   
   nameserver   = join(" ", var.network_config.dns_servers)
