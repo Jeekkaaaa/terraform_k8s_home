@@ -43,6 +43,7 @@ resource "proxmox_vm_qemu" "ubuntu_template" {
   }
   
   network {
+    id     = 0
     model  = "virtio"
     bridge = var.bridge
   }

@@ -52,6 +52,7 @@ resource "proxmox_vm_qemu" "k8s_master" {
   }
   
   network {
+    id     = 0
     model  = "virtio"
     bridge = var.network_config.bridge
   }

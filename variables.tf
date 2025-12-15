@@ -38,6 +38,7 @@ variable "vmid_ranges" {
   })
 }
 
+# ОБНОВЛЕНО: добавлены недостающие поля
 variable "vm_specs" {
   type = object({
     master = object({
@@ -46,8 +47,8 @@ variable "vm_specs" {
       memory_mb          = number
       disk_size_gb       = number
       disk_storage       = string
-      disk_iothread      = number
-      cloudinit_storage  = string
+      disk_iothread      = number        # ДОБАВЛЕНО
+      cloudinit_storage  = string        # ДОБАВЛЕНО
     })
     worker = object({
       cpu_cores          = number
@@ -55,12 +56,13 @@ variable "vm_specs" {
       memory_mb          = number
       disk_size_gb       = number
       disk_storage       = string
-      disk_iothread      = number
-      cloudinit_storage  = string
+      disk_iothread      = number        # ДОБАВЛЕНО
+      cloudinit_storage  = string        # ДОБАВЛЕНО
     })
   })
 }
 
+# ДОБАВЛЕНО: template_specs
 variable "template_specs" {
   type = object({
     cpu_cores    = number
