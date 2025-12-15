@@ -1,26 +1,9 @@
-variable "pm_api_url" {
-  type = string
-}
-
-variable "pm_api_token_id" {
-  type = string
-}
-
-variable "pm_api_token_secret" {
-  type = string
-}
-
-variable "target_node" {
-  type = string
-}
-
-variable "ssh_public_key_path" {
-  type = string
-}
-
-variable "ssh_private_key_path" {
-  type = string
-}
+variable "pm_api_url" { type = string }
+variable "pm_api_token_id" { type = string }
+variable "pm_api_token_secret" { type = string }
+variable "target_node" { type = string }
+variable "ssh_public_key_path" { type = string }
+variable "ssh_private_key_path" { type = string }
 
 variable "cluster_config" {
   type = object({
@@ -38,7 +21,6 @@ variable "vmid_ranges" {
   })
 }
 
-# ИСПРАВЛЕНО: добавлены disk_iothread и cloudinit_storage
 variable "vm_specs" {
   type = object({
     master = object({
@@ -47,8 +29,8 @@ variable "vm_specs" {
       memory_mb          = number
       disk_size_gb       = number
       disk_storage       = string
-      disk_iothread      = number        # ← ДОБАВЛЕНО
-      cloudinit_storage  = string        # ← ДОБАВЛЕНО
+      disk_iothread      = number
+      cloudinit_storage  = string
     })
     worker = object({
       cpu_cores          = number
@@ -56,20 +38,20 @@ variable "vm_specs" {
       memory_mb          = number
       disk_size_gb       = number
       disk_storage       = string
-      disk_iothread      = number        # ← ДОБАВЛЕНО
-      cloudinit_storage  = string        # ← ДОБАВЛЕНО
+      disk_iothread      = number
+      cloudinit_storage  = string
     })
   })
 }
 
 variable "template_specs" {
   type = object({
-    cpu_cores    = number
-    cpu_sockets  = number
-    memory_mb    = number
-    disk_size_gb = number
-  })
+    cpu_cores     = number
+    cpu_sockets   = number
+    memory_mb     = number
+    disk_size_gb  = number
     disk_iothread = number
+  })
 }
 
 variable "network_config" {
@@ -88,22 +70,8 @@ variable "cloud_init" {
   })
 }
 
-variable "auto_static_ips" {
-  type = bool
-}
-
-variable "static_ip_base" {
-  type = number
-}
-
-variable "template_vmid" {
-  type = number
-}
-
-variable "storage" {
-  type = string
-}
-
-variable "bridge" {
-  type = string
-}
+variable "auto_static_ips" { type = bool }
+variable "static_ip_base" { type = number }
+variable "template_vmid" { type = number }
+variable "storage" { type = string }
+variable "bridge" { type = string }
