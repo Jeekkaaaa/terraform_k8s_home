@@ -1,58 +1,73 @@
 # config.auto.tfvars
-# ВСЁ, что вы меняете для деплоя, указывается здесь.
-# Этот файл можно и нужно коммитить в репозиторий.
+# ВСЁ, что вы меняете для деплоя, указывается ТОЛЬКО здесь!
 
-# ========== 1. КЛЮЧЕВОЙ ПАРАМЕТР: СКОЛЬКО МАШИН ==========
-# Пока что этот параметр НЕ БУДЕТ РАБОТАТЬ, пока не изменим main.tf.
-# Но мы его сразу прописываем.
+# ========== ПРОКСМОКС API ==========
+# Эти значения передаются через секреты в CI/CD
+# pm_api_url = "https://your-proxmox:8006/api2/json"
+# pm_api_token_id = "user@pve!token"
+# pm_api_token_secret = "uuid"
+
+# ========== ОСНОВНЫЕ НАСТРОЙКИ ==========
+target_node = "pve-k8s"
+ssh_public_key_path = "/root/.ssh/id_ed25519.pub"
+ssh_private_key_path = "/root/.ssh/id_ed25519"
+
+# ========== КОНФИГ КЛАСТЕРА ==========
 cluster_config = {
-  masters_count = 3          # Желаемое количество мастер-нод
-  workers_count = 2
+  masters_count = 1          # Начинаем с 1 для теста
+  workers_count = 0
   cluster_name  = "home-k8s"
   domain        = "home.lab"
 }
 
-# ========== 2. ХРАНИЛИЩЕ ДИСКОВ ==========
-# ЭТО СРАБОТАЕТ СРАЗУ! Поменяете "big_oleg" — диски создадутся там.
-vm_specs = {
-  master = {
-    cpu_cores    = 4
-    cpu_sockets  = 1
-    memory_mb    = 8192
-    disk_size_gb = 50
-    disk_storage = "local-lvm"  # Ваше хранилище для мастер-нод
-    disk_format  = "raw"
+# ========== ДИАПАЗОНЫ VM ID ==========
+vmid_ranges = {
+  masters = {
+    start = 2000
+    end   = 2009
   }
-  worker = {
-    cpu_cores    = 2
-    cpu_sockets  = 1
-    memory_mb    = 4096
-    disk_size_gb = 30
-    disk_storage = "local-lvm"  # Ваше хранилище для воркер-нод
-    disk_format  = "raw"
+  workers = {
+    start = 2100
+    end   = 2109
   }
 }
 
-# ========== 3. СЕТЕВЫЕ НАСТРОЙКИ ==========
+# ========== ХАРАКТЕРИСТИКИ ВМ ==========
+vm_specs = {
+  master = {
+    cpu_cores          = 2
+    cpu_sockets        = 1
+    memory_mb          = 2048
+    disk_size_gb       = 20
+    disk_storage       = "local-lvm"
+    disk_format        = "raw"
+    cloudinit_storage  = "local-lvm"  # КРИТИЧЕСКИ ВАЖНО!
+  }
+  worker = {
+    cpu_cores          = 2
+    cpu_sockets        = 1
+    memory_mb          = 2048
+    disk_size_gb       = 20
+    disk_storage       = "local-lvm"
+    disk_format        = "raw"
+    cloudinit_storage  = "local-lvm"  # КРИТИЧЕСКИ ВАЖНО!
+  }
+}
+
+# ========== СЕТЕВЫЕ НАСТРОЙКИ ==========
 network_config = {
   subnet       = "192.168.0.0/24"
   gateway      = "192.168.0.1"
-  dns_servers  = ["8.8.8.8"]
+  dns_servers  = ["8.8.8.8", "1.1.1.1"]
   bridge       = "vmbr0"
-  dhcp_start   = 100
-  dhcp_end     = 150
 }
 
-# ========== 4. ДРУГИЕ НАСТРОЙКИ ==========
-# Включаем автоматические статические IP
-auto_static_ips = true
-static_ip_base  = 110
-
-# Целевая нода Proxmox
-target_node = "pve-k8s"
-
-# Настройки Cloud-Init
+# ========== CLOUD-INIT ==========
 cloud_init = {
   user           = "ubuntu"
   search_domains = ["home.lab"]
 }
+
+# ========== НАСТРОЙКИ IP ==========
+auto_static_ips = true
+static_ip_base  = 110

@@ -35,7 +35,7 @@ resource "proxmox_vm_qemu" "k8s_master" {
   }
   memory = var.vm_specs.master.memory_mb
 
-  clone      = "ubuntu-template"
+  clone      = "ubuntu-template"  # Шаблон зафиксирован
   full_clone = true
 
   disk {
@@ -47,7 +47,7 @@ resource "proxmox_vm_qemu" "k8s_master" {
   }
   disk {
     slot    = "ide2"
-    storage = var.vm_specs.master.disk_storage
+    storage = var.vm_specs.master.cloudinit_storage
     type    = "cloudinit"
   }
   network {
