@@ -54,10 +54,11 @@ resource "proxmox_vm_qemu" "k8s_master" {
     id      = 0
     model   = "virtio"
     bridge  = var.network_config.bridge
+    # Ключевое исправление: используем явно вычисленный vmid
     macaddr = format("52:54:00:%02x:%02x:%02x",
-      floor(self.vmid / 65536) % 256,
-      floor(self.vmid / 256) % 256,
-      self.vmid % 256)
+      floor((var.vmid_ranges.masters.start + each.key) / 65536) % 256,
+      floor((var.vmid_ranges.masters.start + each.key) / 256) % 256,
+      (var.vmid_ranges.masters.start + each.key) % 256)
   }
 
   ciuser       = var.cloud_init.user

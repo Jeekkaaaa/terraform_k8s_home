@@ -52,7 +52,11 @@ resource "proxmox_vm_qemu" "k8s_workers" {
     id      = 0
     model   = "virtio"
     bridge  = var.network_config.bridge
-    macaddr = format("52:54:00:aa:bb:%02x", count.index)
+    # Исправление: явно вычисляем MAC на основе VMID
+    macaddr = format("52:54:00:%02x:%02x:%02x",
+      floor((var.vmid_ranges.workers.start + count.index) / 65536) % 256,
+      floor((var.vmid_ranges.workers.start + count.index) / 256) % 256,
+      (var.vmid_ranges.workers.start + count.index) % 256)
   }
 
   ciuser     = var.cloud_init.user
@@ -62,6 +66,13 @@ resource "proxmox_vm_qemu" "k8s_workers" {
   
   agent  = 1
   scsihw = "virtio-scsi-pci"
+
+  lifecycle {
+    ignore_changes = [
+      network[0].macaddr,
+      vmid
+    ]
+  }
 }
 
 output "workers_info" {
