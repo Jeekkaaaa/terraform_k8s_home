@@ -10,73 +10,90 @@ jobs:
 
       - name: Generate SSH Key
         run: |
-          echo "=== Генерация нового SSH ключа ==="
           mkdir -p /root/.ssh
-          # Удаляем старые ключи если существуют
-          if [ -f /root/.ssh/id_ed25519 ]; then
-            echo "Удаляем существующий SSH ключ..."
-            rm -f /root/.ssh/id_ed25519 /root/.ssh/id_ed25519.pub
-          fi
-          # Генерируем новый ключ БЕЗ вопросов
+          rm -f /root/.ssh/id_ed25519 /root/.ssh/id_ed25519.pub
           ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N "" -q <<< y 2>&1
-          echo "✅ SSH ключ сгенерирован"
-          echo "=== Публичный ключ ==="
           cat /root/.ssh/id_ed25519.pub
 
-      - name: Check IP Range Availability
+      - name: Auto-find Free IP Range
         run: |
-          echo "=== Проверка диапазона IP адресов ==="
+          echo "=== Автоматический поиск свободного IP диапазона ==="
           
-          if [ ! -f config.auto.tfvars ]; then
-            echo "❌ Файл config.auto.tfvars не найден!"
-            exit 1
-          fi
+          # Читаем конфиг
+          CONFIG="config.auto.tfvars"
+          [ -f "$CONFIG" ] || { echo "❌ $CONFIG не найден"; exit 1; }
           
-          # Чтение переменных
-          SUBNET=$(grep 'subnet' config.auto.tfvars | cut -d'"' -f2)
-          STATIC_BASE=$(grep 'static_ip_base' config.auto.tfvars | awk '{print $3}')
-          MASTERS_COUNT=$(grep 'masters_count' config.auto.tfvars | awk '{print $3}')
-          WORKERS_COUNT=$(grep 'workers_count' config.auto.tfvars | awk '{print $3}')
+          # Простое чтение без сложного парсинга
+          SUBNET=$(grep 'subnet' "$CONFIG" | cut -d'"' -f2)
+          CURRENT_BASE=$(grep 'static_ip_base' "$CONFIG" | awk '{print $3}')
+          MASTERS=$(grep 'masters_count' "$CONFIG" | awk '{print $3}')
+          WORKERS=$(grep 'workers_count' "$CONFIG" | awk '{print $3}')
           
-          echo "Сеть: $SUBNET"
-          echo "Базовый IP: $STATIC_BASE"
-          echo "Мастер-нод: $MASTERS_COUNT"
-          echo "Воркер-нод: $WORKERS_COUNT"
+          # Проверка
+          [ -z "$SUBNET" ] && { echo "❌ Не найден subnet"; exit 1; }
+          [ -z "$CURRENT_BASE" ] && { echo "❌ Не найден static_ip_base"; exit 1; }
+          [ -z "$MASTERS" ] && MASTERS=1
+          [ -z "$WORKERS" ] && WORKERS=2
           
-          if [ -z "$SUBNET" ] || [ -z "$STATIC_BASE" ] || [ -z "$MASTERS_COUNT" ] || [ -z "$WORKERS_COUNT" ]; then
-            echo "❌ Не удалось прочитать настройки"
-            exit 1
-          fi
-          
+          TOTAL=$((MASTERS + WORKERS))
           NETWORK_PREFIX=$(echo "$SUBNET" | cut -d'/' -f1 | cut -d. -f1-3)
-          TOTAL_NODES=$((MASTERS_COUNT + WORKERS_COUNT))
           
-          echo "=== Проверка $TOTAL_NODES IP адресов ($NETWORK_PREFIX.$STATIC_BASE-$((STATIC_BASE + TOTAL_NODES - 1))) ==="
+          echo "Нужно $TOTAL IP ($MASTERS мастер + $WORKERS воркер)"
+          echo "Текущая база: $CURRENT_BASE"
+          echo "Диапазон: $NETWORK_PREFIX.[$CURRENT_BASE-$((CURRENT_BASE + TOTAL - 1))]"
           
-          ALL_FREE=true
-          for i in $(seq 0 $((TOTAL_NODES - 1))); do
-            IP_INDEX=$((STATIC_BASE + i))
-            CHECK_IP="${NETWORK_PREFIX}.${IP_INDEX}"
-            
-            echo -n "  $CHECK_IP ... "
-            if ping -c 1 -W 1 "$CHECK_IP" >/dev/null 2>&1; then
-              echo "ЗАНЯТ ❌"
-              ALL_FREE=false
+          # Проверяем текущий диапазон
+          echo "Проверяем текущий диапазон..."
+          CURRENT_FREE=true
+          for i in $(seq 0 $((TOTAL - 1))); do
+            IP="$NETWORK_PREFIX.$((CURRENT_BASE + i))"
+            if ping -c 1 -W 1 "$IP" >/dev/null 2>&1; then
+              echo "  $IP занят ❌"
+              CURRENT_FREE=false
             else
-              echo "свободен ✅"
+              echo "  $IP свободен ✅"
             fi
           done
           
-          if [ "$ALL_FREE" = false ]; then
-            echo "❌ Некоторые IP адреса уже заняты!"
-            echo "Измените static_ip_base в config.auto.tfvars"
-            exit 1
-          else
-            echo "✅ Все IP адреса свободны"
+          if [ "$CURRENT_FREE" = true ]; then
+            echo "✅ Текущий диапазон свободен, используем его"
+            exit 0
           fi
+          
+          # Ищем новый диапазон
+          echo "Ищем свободный диапазон..."
+          for start in $(seq 120 240); do
+            FREE=true
+            for offset in $(seq 0 $((TOTAL - 1))); do
+              IP="$NETWORK_PREFIX.$((start + offset))"
+              if ping -c 1 -W 1 "$IP" >/dev/null 2>&1; then
+                FREE=false
+                break
+              fi
+            done
+            
+            if [ "$FREE" = true ]; then
+              echo "✅ Найден свободный диапазон: $start"
+              sed -i "s/static_ip_base = $CURRENT_BASE/static_ip_base = $start/" "$CONFIG"
+              echo "Обновлено: static_ip_base = $start"
+              echo "Новые IP:"
+              for i in $(seq 0 $((TOTAL - 1))); do
+                echo "  $NETWORK_PREFIX.$((start + i))"
+              done
+              exit 0
+            fi
+          done
+          
+          echo "❌ Не найдено свободного диапазона"
+          exit 1
 
       - name: Clean Terraform Cache
         run: rm -rf .terraform .terraform.lock.hcl
+
+      - name: Show Configuration
+        run: |
+          echo "=== Текущая конфигурация ==="
+          grep -E "(static_ip_base|masters_count|workers_count|subnet)" config.auto.tfvars
 
       - name: Terraform Init
         run: terraform init
