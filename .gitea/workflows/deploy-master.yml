@@ -8,6 +8,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Копируем ЕДИНЫЙ файл конфигурации туда, где его увидит Terraform
+      - name: Prepare Configuration
+        run: |
+          echo "Копируем единый файл конфигурации в модуль master..."
+          cp config.auto.tfvars master/
+          echo "Проверяем:"
+          ls -la master/config.auto.tfvars
+          echo "--- Содержимое (первые 5 строк) ---"
+          head -5 master/config.auto.tfvars
+
       - name: Generate SSH Key
         run: |
           apk add --no-cache openssh-client
@@ -40,27 +50,24 @@ jobs:
           cd master/
           rm -rf .terraform .terraform.lock.hcl
 
+      # Terraform УВИДИТ config.auto.tfvars в папке master/ и использует ВСЕ настройки из него
       - name: Terraform Init & Plan
         run: |
           cd master/
           terraform init
           terraform plan -input=false -out=tfplan
         env:
+          # ТОЛЬКО СЕКРЕТЫ. Все остальные настройки - из config.auto.tfvars
           TF_VAR_pm_api_url: ${{ secrets.PM_API_URL }}
           TF_VAR_pm_api_token_id: ${{ secrets.PM_API_TOKEN_ID }}
           TF_VAR_pm_api_token_secret: ${{ secrets.PM_API_TOKEN_SECRET }}
-          TF_VAR_target_node: "pve"
-          TF_VAR_ssh_public_key_path: "/root/.ssh/id_ed25519.pub"
-          TF_VAR_ssh_private_key_path: "/root/.ssh/id_ed25519"
 
       - name: Terraform Apply
         run: |
           cd master/
           terraform apply -input=false -auto-approve tfplan
         env:
+          # ТОЛЬКО СЕКРЕТЫ. Все остальные настройки - из config.auto.tfvars
           TF_VAR_pm_api_url: ${{ secrets.PM_API_URL }}
           TF_VAR_pm_api_token_id: ${{ secrets.PM_API_TOKEN_ID }}
           TF_VAR_pm_api_token_secret: ${{ secrets.PM_API_TOKEN_SECRET }}
-          TF_VAR_target_node: "pve"
-          TF_VAR_ssh_public_key_path: "/root/.ssh/id_ed25519.pub"
-          TF_VAR_ssh_private_key_path: "/root/.ssh/id_ed25519"
