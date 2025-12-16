@@ -12,9 +12,11 @@ provider "proxmox" {
   api_token = "${var.pm_api_token_id}=${var.pm_api_token_secret}"
   insecure  = true
   
-  # ОТКЛЮЧАЕМ SSH - используем только API
+  # ЯВНО ОТКЛЮЧАЕМ SSH ДЛЯ ИЗБЕЖАНИЯ ОШИБОК АУТЕНТИФИКАЦИИ
   ssh {
-    agent = false
+    agent    = false
+    username = ""
+    password = ""
   }
 }
 
@@ -24,7 +26,7 @@ resource "terraform_data" "check_image" {
 
   provisioner "local-exec" {
     command = <<-EOT
-      echo "Проверка: предполагаем что образ уже загружен в Proxmox"
+      echo "Проверка: предполагаем что образ jammy-server-cloudimg-amd64.img уже загружен в Proxmox"
       echo "Если образа нет, загрузите его вручную:"
       echo "wget -O /var/lib/vz/template/iso/jammy-server-cloudimg-amd64.img \\"
       echo "  https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
@@ -115,5 +117,7 @@ output "manual_steps" {
     Или загрузите через Proxmox UI:
     - Datacenter -> Storage -> local -> ISO Images -> Upload
     - Выберите файл или укажите URL: https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
+    
+    Примечание: Используется VM ID = ${var.template_vmid}
   EOT
 }

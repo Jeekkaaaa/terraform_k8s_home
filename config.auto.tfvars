@@ -3,7 +3,7 @@ target_node = "pve-k8s"
 ssh_public_key = ""
 
 # Шаблон
-template_vmid = 9000
+template_vmid = 9001
 
 # Кластер
 cluster_config = {
