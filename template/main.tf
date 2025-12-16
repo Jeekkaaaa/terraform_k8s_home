@@ -4,10 +4,6 @@ terraform {
       source  = "telmate/proxmox"
       version = "3.0.2-rc06"
     }
-    null = {
-      source  = "hashicorp/null"
-      version = "~> 3.0"
-    }
   }
 }
 
@@ -18,7 +14,7 @@ provider "proxmox" {
   pm_tls_insecure     = true
 }
 
-# Загружаем облачный образ Ubuntu
+# Загружаем облачный образ Ubuntu в Proxmox автоматически
 resource "proxmox_virtual_environment_file" "ubuntu_cloud_image" {
   content_type = "iso"
   datastore_id = var.storage
@@ -29,16 +25,16 @@ resource "proxmox_virtual_environment_file" "ubuntu_cloud_image" {
   }
 }
 
-# Создаем ВМ из образа
+# Создаем шаблон из загруженного образа
 resource "proxmox_vm_qemu" "ubuntu_template" {
   depends_on = [proxmox_virtual_environment_file.ubuntu_cloud_image]
   
   name        = "ubuntu-template"
   vmid        = var.template_vmid
   target_node = var.target_node
-  desc        = "Ubuntu 22.04 Cloud-Init Template"
+  description = "Ubuntu 22.04 Cloud-Init Template"
   
-  # Используем cloud-init образ
+  # Создаем новую ВМ, не клонируем
   clone = null
   
   cpu {
@@ -48,7 +44,7 @@ resource "proxmox_vm_qemu" "ubuntu_template" {
   
   memory = var.template_specs.memory_mb
   
-  # Основной диск
+  # Основной диск (создаем из образа)
   disk {
     slot     = 0
     type     = "scsi"
@@ -64,24 +60,25 @@ resource "proxmox_vm_qemu" "ubuntu_template" {
     storage = var.storage
   }
   
-  # Сеть
+  # Сеть (без IP для шаблона)
   network {
     id     = 0
     model  = "virtio"
     bridge = var.bridge
   }
   
-  # Cloud-init
+  # Cloud-init настройки
   ciuser       = var.cloud_init.user
   searchdomain = join(" ", var.cloud_init.search_domains)
   sshkeys      = var.ssh_public_key
   
-  # Загрузка
+  # Настройки загрузки
   boot      = "order=scsi0"
   bootdisk  = "scsi0"
   scsihw    = "virtio-scsi-pci"
   agent     = 1
   os_type   = "cloud-init"
+  template  = true  # Создаем сразу как шаблон!
   
   lifecycle {
     ignore_changes = [
@@ -91,15 +88,7 @@ resource "proxmox_vm_qemu" "ubuntu_template" {
   }
 }
 
-# Конвертируем в шаблон (просто ждем, т.к. qm не доступен в CI)
-resource "null_resource" "wait_and_convert" {
-  depends_on = [proxmox_vm_qemu.ubuntu_template]
-  
-  provisioner "local-exec" {
-    command = <<-EOT
-      echo "Template VM ${var.template_vmid} created."
-      echo "Note: Manual conversion to template may be needed in Proxmox UI"
-      echo "or run: qm set ${var.template_vmid} --template 1"
-    EOT
-  }
+# Информационный вывод
+output "template_ready" {
+  value = "Template ${var.template_vmid} created from cloud image"
 }
