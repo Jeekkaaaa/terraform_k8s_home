@@ -1,10 +1,8 @@
-# Proxmox API (заполнится через secrets)
-
 # Основные
 target_node = "pve-k8s"
 ssh_public_key = ""
 
-# Шаблон (создать вручную в Proxmox UI)
+# Шаблон
 template_vmid = 9000
 
 # Кластер
@@ -43,7 +41,7 @@ vm_specs = {
   }
 }
 
-# Сеть (ИЗМЕНИТЕ НА СВОЮ!)
+# Сеть
 network_config = {
   subnet       = "192.168.0.0/24"
   gateway      = "192.168.0.1"
@@ -52,6 +50,10 @@ network_config = {
 }
 
 # Cloud-init
+cloud_init = {
+  user           = "ubuntu"
+  search_domains = ["home.lab"]
+}
 
 # Остальное
 storage = "local-lvm"
@@ -68,5 +70,3 @@ template_specs = {
   disk_size_gb  = 12
   disk_iothread = true
 }
-
-# Характеристики шаблона
