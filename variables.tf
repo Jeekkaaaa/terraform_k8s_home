@@ -29,7 +29,7 @@ variable "vm_specs" {
       memory_mb          = number
       disk_size_gb       = number
       disk_storage       = string
-      disk_iothread      = number
+      disk_iothread      = bool
       cloudinit_storage  = string
     })
     worker = object({
@@ -38,7 +38,7 @@ variable "vm_specs" {
       memory_mb          = number
       disk_size_gb       = number
       disk_storage       = string
-      disk_iothread      = number
+      disk_iothread      = bool
       cloudinit_storage  = string
     })
   })
@@ -50,7 +50,7 @@ variable "template_specs" {
     cpu_sockets   = number
     memory_mb     = number
     disk_size_gb  = number
-    disk_iothread = number
+    disk_iothread = bool
   })
 }
 

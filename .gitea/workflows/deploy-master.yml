@@ -103,9 +103,11 @@ jobs:
           TF_VAR_pm_api_token_secret: ${{ secrets.PM_API_TOKEN_SECRET }}
 
       - name: Terraform Validate
+        run: terraform validate -var-file=config.auto.tfvars
         run: terraform validate
 
       - name: Terraform Plan
+        run: terraform plan -input=false -var-file=config.auto.tfvars
         run: terraform plan -input=false
         env:
           TF_VAR_pm_api_url: ${{ secrets.PM_API_URL }}
@@ -113,6 +115,7 @@ jobs:
           TF_VAR_pm_api_token_secret: ${{ secrets.PM_API_TOKEN_SECRET }}
 
       - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false -var-file=config.auto.tfvars
         run: terraform apply -auto-approve -input=false
         env:
           TF_VAR_pm_api_url: ${{ secrets.PM_API_URL }}
