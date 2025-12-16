@@ -14,39 +14,32 @@ provider "proxmox" {
   pm_tls_insecure     = true
 }
 
-locals {
-  worker_indices = range(var.cluster_config.workers_count)
-}
-
 resource "proxmox_vm_qemu" "k8s_worker" {
-  for_each = { for idx in local.worker_indices : idx => idx }
-
-  name        = "k8s-worker-${var.vmid_ranges.workers.start + each.key}"
-  target_node = var.target_node
-  vmid        = var.vmid_ranges.workers.start + each.key
-  description = "K8s Worker ${each.key + 1}"
+  count = var.cluster_config.workers_count
   
-  clone = "ubuntu-template"
-  full_clone = true
+  name        = "k8s-worker-${var.vmid_ranges.workers.start + count.index}"
+  vmid        = var.vmid_ranges.workers.start + count.index
+  target_node = var.target_node
+  desc        = "K8s Worker ${count.index + 1}"
+  clone       = "ubuntu-template"
   
   cpu {
     cores   = var.vm_specs.worker.cpu_cores
     sockets = var.vm_specs.worker.cpu_sockets
   }
   
-  memory  = var.vm_specs.worker.memory_mb
-  start_at_node_boot = true
+  memory = var.vm_specs.worker.memory_mb
   
   disk {
-    slot     = "scsi0"
-    type     = "disk"
+    slot     = 0
+    type     = "scsi"
     storage  = var.vm_specs.worker.disk_storage
     size     = "${var.vm_specs.worker.disk_size_gb}G"
     iothread = var.vm_specs.worker.disk_iothread
   }
   
   disk {
-    slot    = "scsi2"
+    slot    = 2
     type    = "cloudinit"
     storage = var.vm_specs.worker.cloudinit_storage
   }
@@ -57,23 +50,24 @@ resource "proxmox_vm_qemu" "k8s_worker" {
     bridge = var.network_config.bridge
   }
   
+  # Динамический IP на основе static_ip_base
+  ipconfig0 = "ip=${var.network_config.subnet_prefix}.${var.static_ip_base + count.index + var.cluster_config.masters_count}/24,gw=${var.network_config.gateway}"
+  
   ciuser       = var.cloud_init.user
-  sshkeys      = file(var.ssh_public_key_path)
-  
-  
-  nameserver   = join(" ", var.network_config.dns_servers)
   searchdomain = join(" ", var.cloud_init.search_domains)
+  nameserver   = join(" ", var.network_config.dns_servers)
+  sshkeys      = var.ssh_public_key
   
-  agent  = 1
-  scsihw = "virtio-scsi-single"
-}
-
-output "workers" {
-  value = {
-    for idx, vm in proxmox_vm_qemu.k8s_worker : idx => {
-      name = vm.name
-      vmid = vm.vmid
-      ip   = var.auto_static_ips ? cidrhost(var.network_config.subnet, var.static_ip_base + var.cluster_config.masters_count + idx) : "dhcp"
-    }
+  boot      = "order=scsi0"
+  bootdisk  = "scsi0"
+  scsihw    = "virtio-scsi-pci"
+  agent     = 1
+  os_type   = "cloud-init"
+  
+  lifecycle {
+    ignore_changes = [
+      disk[0].size,
+      network,
+    ]
   }
 }

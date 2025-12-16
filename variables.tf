@@ -75,3 +75,9 @@ variable "static_ip_base" { type = number }
 variable "template_vmid" { type = number }
 variable "storage" { type = string }
 variable "bridge" { type = string }
+
+# Локальная переменная для префикса сети
+locals {
+  network_config = var.network_config
+  subnet_prefix  = split(".", local.network_config.subnet)[0]
+}

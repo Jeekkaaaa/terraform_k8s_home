@@ -22,7 +22,7 @@ resource "proxmox_vm_qemu" "k8s_master" {
   for_each = { for idx in local.master_indices : idx => idx }
 
   name        = "k8s-master-${var.vmid_ranges.masters.start + each.key}"
-  ipconfig0 = "ip=192.168.0.${var.static_ip_base}/24,gw=192.168.0.1"
+  ipconfig0 = "ip=${var.network_config.subnet_prefix}.${var.static_ip_base}/24,gw=${var.network_config.gateway}"
   target_node = var.target_node
   vmid        = var.vmid_ranges.masters.start + each.key
   description = "K8s Master ${each.key + 1}"

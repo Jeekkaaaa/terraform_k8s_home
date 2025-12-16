@@ -105,3 +105,16 @@ variable "ssh_public_key" {
 variable "static_ip_base" {
   type = number
 }
+
+variable "network_config" {
+  type = object({
+    subnet       = string
+    gateway      = string
+    dns_servers  = list(string)
+    bridge       = string
+  })
+}
+
+variable "static_ip_base" {
+  type = number
+}
