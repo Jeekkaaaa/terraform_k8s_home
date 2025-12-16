@@ -11,19 +11,28 @@ provider "proxmox" {
   endpoint  = var.pm_api_url
   api_token = "${var.pm_api_token_id}=${var.pm_api_token_secret}"
   insecure  = true
+  
+  # Увеличиваем таймауты провайдера
+  timeout {
+    create  = "60m"
+    update  = "60m"
+    delete  = "30m"
+    read    = "10m"
+  }
 }
 
-# Загрузка образа в хранилище для ISO (local)
+# Загрузка образа с максимальными таймаутами
 resource "proxmox_virtual_environment_file" "ubuntu_cloud_image" {
   content_type = "iso"
   datastore_id = var.storage_iso
   node_name    = var.target_node
   overwrite    = true
-  timeout_upload = 7200
+  timeout_upload = 10800  # 3 часа!
   
   source_file {
     path     = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
     insecure = true
+    timeout_download = 7200  # Таймаут на скачивание
   }
 }
 
@@ -44,7 +53,6 @@ resource "proxmox_virtual_environment_vm" "ubuntu_template" {
     dedicated = var.template_specs.memory_mb
   }
   
-  # Диск ВМ в storage_vm (local-lvm)
   disk {
     datastore_id = var.storage_vm
     file_id      = "${var.target_node}/${var.storage_iso}:iso/${proxmox_virtual_environment_file.ubuntu_cloud_image.file_name}"
@@ -53,7 +61,6 @@ resource "proxmox_virtual_environment_vm" "ubuntu_template" {
     interface    = "scsi0"
   }
   
-  # Cloud-init диск тоже в storage_vm
   initialization {
     datastore_id = var.storage_vm
     
