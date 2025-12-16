@@ -33,3 +33,41 @@ variable "bridge" {
   type    = string
   default = "vmbr0"
 }
+
+variable "template_specs" {
+  type = object({
+    cpu_cores     = number
+    cpu_sockets   = number
+    memory_mb     = number
+    disk_size_gb  = number
+    disk_iothread = bool
+  })
+}
+
+variable "ssh_private_key_path" {
+  type = string
+}
+
+variable "auto_static_ips" {
+  type = bool
+}
+
+variable "static_ip_base" {
+  type = number
+}
+
+variable "network_config" {
+  type = object({
+    subnet       = string
+    gateway      = string
+    dns_servers  = list(string)
+    bridge       = string
+  })
+}
+
+variable "cloud_init" {
+  type = object({
+    user           = string
+    search_domains = list(string)
+  })
+}

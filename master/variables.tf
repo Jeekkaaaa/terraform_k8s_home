@@ -69,3 +69,34 @@ variable "auto_static_ips" {
 variable "static_ip_base" {
   type = number
 }
+
+variable "ssh_private_key_path" {
+  type = string
+}
+
+variable "template_vmid" {
+  type = number
+}
+
+variable "storage" {
+  type = string
+}
+
+variable "bridge" {
+  type = string
+}
+
+# Расширяем vm_specs.master
+variable "vm_specs" {
+  type = object({
+    master = object({
+      cpu_cores          = number
+      cpu_sockets        = number
+      memory_mb          = number
+      disk_size_gb       = number
+      disk_storage       = string
+      disk_iothread      = bool      # ДОБАВЛЕНО
+      cloudinit_storage  = string    # ДОБАВЛЕНО
+    })
+  })
+}
