@@ -110,3 +110,11 @@ variable "vmid_ranges" {
     workers = object({ start = number, end = number })
   })
 }
+
+variable "ssh_public_key_path" {
+  type = string
+}
+
+variable "ssh_public_key_path" {
+  type = string
+}

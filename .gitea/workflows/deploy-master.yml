@@ -8,19 +8,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Copy config to all directories
-        run: |
-          echo "=== Копируем config.auto.tfvars во все нужные директории ==="
-          cp config.auto.tfvars master/
-          cp config.auto.tfvars worker/
-          cp config.auto.tfvars template/
-          echo "✅ Конфиг скопирован"
-
       - name: Generate SSH Key
         run: |
           mkdir -p /root/.ssh
           rm -f /root/.ssh/id_ed25519 /root/.ssh/id_ed25519.pub
           ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N "" -q <<< y 2>&1
+          SSH_PUB=$(cat /root/.ssh/id_ed25519.pub)
+          echo "SSH_PUB_KEY=$SSH_PUB" >> $GITHUB_ENV
           echo "✅ SSH ключ сгенерирован"
 
       - name: Auto-find Free IP Range
@@ -58,15 +52,8 @@ jobs:
             if [ "$FREE" = true ]; then
               echo "✅ Найден свободный диапазон: $start"
               sed -i "s/static_ip_base = $CURRENT_BASE/static_ip_base = $start/" "$CONFIG"
+              sed -i "s|ssh_public_key = \"\"|ssh_public_key = \"$SSH_PUB_KEY\"|" "$CONFIG"
               echo "Обновлено: static_ip_base = $start"
-              
-              # Также обновляем в скопированных файлах
-              for dir in master worker template; do
-                if [ -f "$dir/config.auto.tfvars" ]; then
-                  sed -i "s/static_ip_base = $CURRENT_BASE/static_ip_base = $start/" "$dir/config.auto.tfvars"
-                fi
-              done
-              
               echo "IP адреса:"
               for i in $(seq 0 $((TOTAL - 1))); do
                 echo "  $NETWORK_PREFIX.$((start + i))"
@@ -79,59 +66,23 @@ jobs:
           exit 1
 
       - name: Clean Terraform Cache
-        run: |
-          echo "=== Очистка кэша Terraform ==="
-          for dir in master worker template; do
-            if [ -d "$dir" ]; then
-              echo "Очищаем $dir/"
-              cd "$dir" && rm -rf .terraform .terraform.lock.hcl 2>/dev/null || true
-              cd ..
-            fi
-          done
+        run: rm -rf .terraform .terraform.lock.hcl
 
-      - name: Terraform Init (All Modules)
+      - name: Terraform Init & Plan & Apply
         run: |
-          echo "=== Инициализация всех модулей ==="
+          # Копируем config.auto.tfvars в каждую папку
+          cp config.auto.tfvars template/
+          cp config.auto.tfvars master/
+          cp config.auto.tfvars worker/
+          
+          # Запускаем для каждой папки
           for dir in template master worker; do
-            if [ -d "$dir" ]; then
-              echo "Инициализируем $dir/"
-              cd "$dir"
-              terraform init
-              cd ..
-            fi
-          done
-        env:
-          TF_VAR_pm_api_url: ${{ secrets.PM_API_URL }}
-          TF_VAR_pm_api_token_id: ${{ secrets.PM_API_TOKEN_ID }}
-          TF_VAR_pm_api_token_secret: ${{ secrets.PM_API_TOKEN_SECRET }}
-
-      - name: Terraform Plan (All Modules)
-        run: |
-          echo "=== План для всех модулей ==="
-          for dir in template master worker; do
-            if [ -d "$dir" ]; then
-              echo "План для $dir/"
-              cd "$dir"
-              terraform plan -input=false -out="$dir-tfplan"
-              cd ..
-            fi
-          done
-        env:
-          TF_VAR_pm_api_url: ${{ secrets.PM_API_URL }}
-          TF_VAR_pm_api_token_id: ${{ secrets.PM_API_TOKEN_ID }}
-          TF_VAR_pm_api_token_secret: ${{ secrets.PM_API_TOKEN_SECRET }}
-
-      - name: Terraform Apply (All Modules)
-        run: |
-          echo "=== Применение всех модулей ==="
-          # Сначала template, потом master, потом worker
-          for dir in template master worker; do
-            if [ -d "$dir" ]; then
-              echo "Применяем $dir/"
-              cd "$dir"
-              terraform apply -input=false -auto-approve "$dir-tfplan"
-              cd ..
-            fi
+            echo "=== Работаем в $dir/ ==="
+            cd "$dir"
+            terraform init
+            terraform plan -input=false
+            terraform apply -auto-approve -input=false
+            cd ..
           done
         env:
           TF_VAR_pm_api_url: ${{ secrets.PM_API_URL }}
