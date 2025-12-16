@@ -19,17 +19,14 @@ jobs:
         run: |
           echo "=== Автоматический поиск свободного IP диапазона ==="
           
-          # Читаем конфиг
           CONFIG="config.auto.tfvars"
           [ -f "$CONFIG" ] || { echo "❌ $CONFIG не найден"; exit 1; }
           
-          # Простое чтение без сложного парсинга
           SUBNET=$(grep 'subnet' "$CONFIG" | cut -d'"' -f2)
           CURRENT_BASE=$(grep 'static_ip_base' "$CONFIG" | awk '{print $3}')
           MASTERS=$(grep 'masters_count' "$CONFIG" | awk '{print $3}')
           WORKERS=$(grep 'workers_count' "$CONFIG" | awk '{print $3}')
           
-          # Проверка
           [ -z "$SUBNET" ] && { echo "❌ Не найден subnet"; exit 1; }
           [ -z "$CURRENT_BASE" ] && { echo "❌ Не найден static_ip_base"; exit 1; }
           [ -z "$MASTERS" ] && MASTERS=1
@@ -42,7 +39,6 @@ jobs:
           echo "Текущая база: $CURRENT_BASE"
           echo "Диапазон: $NETWORK_PREFIX.[$CURRENT_BASE-$((CURRENT_BASE + TOTAL - 1))]"
           
-          # Проверяем текущий диапазон
           echo "Проверяем текущий диапазон..."
           CURRENT_FREE=true
           for i in $(seq 0 $((TOTAL - 1))); do
@@ -60,7 +56,6 @@ jobs:
             exit 0
           fi
           
-          # Ищем новый диапазон
           echo "Ищем свободный диапазон..."
           for start in $(seq 120 240); do
             FREE=true
