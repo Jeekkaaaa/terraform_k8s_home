@@ -13,7 +13,7 @@ provider "proxmox" {
   insecure  = true
 }
 
-# Скачивание образа через terraform_data (встроенный ресурс, не требует провайдера)
+# Скачивание образа через terraform_data
 resource "terraform_data" "download_image" {
   triggers_replace = timestamp()
 
@@ -31,7 +31,6 @@ resource "terraform_data" "download_image" {
     EOT
   }
 
-  # ДОБАВЛЕННАЯ КОМАНДА: Очистка временного файла при destroy
   provisioner "local-exec" {
     when    = destroy
     command = "rm -f /tmp/jammy-server-cloudimg-amd64.img"
@@ -70,9 +69,10 @@ resource "proxmox_virtual_environment_vm" "ubuntu_template" {
     dedicated = var.template_specs.memory_mb
   }
 
+  # ИСПРАВЛЕНО: убрал target_node из file_id
   disk {
     datastore_id = var.storage_vm
-    file_id      = "${var.target_node}/${var.storage_iso}:iso/jammy-server-cloudimg-amd64.img"
+    file_id      = "${var.storage_iso}:iso/jammy-server-cloudimg-amd64.img"  # <-- ТОЛЬКО хранилище и путь
     size         = var.template_specs.disk_size_gb
     iothread     = var.template_specs.disk_iothread
     interface    = "scsi0"
