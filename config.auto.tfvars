@@ -1,15 +1,25 @@
-# config.auto.tfvars
-# ВСЁ, что вы меняете для деплоя, указывается ТОЛЬКО здесь!
+# Proxmox API (через secrets)
+pm_api_url = ""
+pm_api_token_id = ""
+pm_api_token_secret = ""
 
-# ========== ПРОКСМОКС API ==========
-# Эти значения передаются через секреты в CI/CD
-
-# ========== ОСНОВНЫЕ НАСТРОЙКИ ==========
+# Основные
 target_node = "pve-k8s"
 ssh_public_key_path = "/root/.ssh/id_ed25519.pub"
 ssh_private_key_path = "/root/.ssh/id_ed25519"
+ssh_public_key = ""
 
-# ========== КОНФИГ КЛАСТЕРА ==========
+# Шаблон
+template_vmid = 9000
+template_specs = {
+  cpu_cores     = 2
+  cpu_sockets   = 1
+  memory_mb     = 2048
+  disk_size_gb  = 12
+  disk_iothread = true
+}
+
+# Кластер
 cluster_config = {
   masters_count = 1
   workers_count = 2
@@ -17,19 +27,13 @@ cluster_config = {
   domain        = "home.lab"
 }
 
-# ========== ДИАПАЗОНЫ VM ID ==========
+# VM ID
 vmid_ranges = {
-  masters = {
-    start = 2000
-    end   = 2009
-  }
-  workers = {
-    start = 2100
-    end   = 2109
-  }
+  masters = { start = 2000, end = 2009 }
+  workers = { start = 2100, end = 2109 }
 }
 
-# ========== ХАРАКТЕРИСТИКИ ВМ ==========
+# Спецификации VM
 vm_specs = {
   master = {
     cpu_cores          = 2
@@ -37,8 +41,7 @@ vm_specs = {
     memory_mb          = 4096
     disk_size_gb       = 30
     disk_storage       = "local-lvm"
-    disk_format        = "raw"
-    disk_iothread      = true      # ДОБАВЛЕНО
+    disk_iothread      = true
     cloudinit_storage  = "local-lvm"
   }
   worker = {
@@ -47,22 +50,12 @@ vm_specs = {
     memory_mb          = 2048
     disk_size_gb       = 20
     disk_storage       = "local-lvm"
-    disk_format        = "raw"
-    disk_iothread      = true      # ДОБАВЛЕНО
+    disk_iothread      = true
     cloudinit_storage  = "local-lvm"
   }
 }
 
-# ========== ШАБЛОН ==========
-template_specs = {
-  cpu_cores     = 2
-  cpu_sockets   = 1
-  memory_mb     = 2048
-  disk_size_gb  = 12
-  disk_iothread = true            # ДОБАВЛЕНО
-}
-
-# ========== СЕТЕВЫЕ НАСТРОЙКИ ==========
+# Сеть
 network_config = {
   subnet       = "192.168.0.0/24"
   gateway      = "192.168.0.1"
@@ -70,18 +63,15 @@ network_config = {
   bridge       = "vmbr0"
 }
 
-# ========== CLOUD-INIT ==========
+# Cloud-init
 cloud_init = {
   user           = "ubuntu"
   search_domains = ["home.lab"]
 }
 
-# ========== НАСТРОЙКИ IP ==========
-auto_static_ips = true
-static_ip_base  = 110
-
-# ========== ДРУГИЕ НАСТРОЙКИ ==========
-template_vmid = 9000
+# Остальное
 storage = "local-lvm"
 bridge = "vmbr0"
-ssh_public_key = ""
+
+# Автоподбор IP (заполнится workflow)
+# static_ip_base будет вычислен и передан через TF_VAR_

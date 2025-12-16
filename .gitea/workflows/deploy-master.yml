@@ -15,42 +15,24 @@ jobs:
           ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 -N "" -q <<< y 2>&1
           SSH_PUB=$(cat /root/.ssh/id_ed25519.pub)
           echo "SSH_PUB_KEY=$SSH_PUB" >> $GITHUB_ENV
-          echo "✅ SSH ключ сгенерирован"
-
-      - name: Copy config to all directories
-        run: |
-          echo "=== Копируем config.auto.tfvars ==="
-          cp config.auto.tfvars template/
-          cp config.auto.tfvars master/
-          cp config.auto.tfvars worker/
 
       - name: Auto-find Free IP Range
         run: |
           echo "=== Автопоиск свободных IP ==="
           
-          CONFIG="config.auto.tfvars"
-          [ -f "$CONFIG" ] || { echo "❌ $CONFIG не найден"; exit 1; }
-          
-          SUBNET=$(grep 'subnet' "$CONFIG" | cut -d'"' -f2)
-          CURRENT_BASE=$(grep 'static_ip_base' "$CONFIG" | awk '{print $3}')
-          MASTERS=$(grep 'masters_count' "$CONFIG" | awk '{print $3}')
-          WORKERS=$(grep 'workers_count' "$CONFIG" | awk '{print $3}')
-          
-          [ -z "$SUBNET" ] && SUBNET="192.168.0.0/24"
-          [ -z "$CURRENT_BASE" ] && CURRENT_BASE=110
-          [ -z "$MASTERS" ] && MASTERS=1
-          [ -z "$WORKERS" ] && WORKERS=2
-          
+          MASTERS=1
+          WORKERS=2
           TOTAL=$((MASTERS + WORKERS))
-          NETWORK_PREFIX=$(echo "$SUBNET" | cut -d'/' -f1 | cut -d. -f1-3)
+          NETWORK="192.168.0"
           
           echo "Ищем $TOTAL свободных IP..."
           
           for start in $(seq 120 240); do
             FREE=true
-            for offset in $(seq 0 $((TOTAL - 1))); do
-              IP="$NETWORK_PREFIX.$((start + offset))"
+            for i in $(seq 0 $((TOTAL - 1))); do
+              IP="$NETWORK.$((start + i))"
               if ping -c 1 -W 1 "$IP" >/dev/null 2>&1; then
+                echo "  $IP занят"
                 FREE=false
                 break
               fi
@@ -58,20 +40,15 @@ jobs:
             
             if [ "$FREE" = true ]; then
               echo "✅ Найден свободный диапазон: $start"
-              
-              # Обновляем ВСЕ файлы
-              for file in config.auto.tfvars template/config.auto.tfvars master/config.auto.tfvars worker/config.auto.tfvars; do
-                if [ -f "$file" ]; then
-                  sed -i "s/static_ip_base = $CURRENT_BASE/static_ip_base = $start/" "$file"
-                  sed -i "s|ssh_public_key = \"\"|ssh_public_key = \"$SSH_PUB_KEY\"|" "$file"
-                fi
-              done
-              
-              echo "Обновлено: static_ip_base = $start"
               echo "IP адреса:"
               for i in $(seq 0 $((TOTAL - 1))); do
-                echo "  $NETWORK_PREFIX.$((start + i))"
+                echo "  $NETWORK.$((start + i))"
               done
+              
+              # Записываем в файл для использования в Terraform
+              echo "static_ip_base = $start" >> config.auto.tfvars
+              echo "static_ip_base = $start" >> master/config.auto.tfvars
+              echo "static_ip_base = $start" >> worker/config.auto.tfvars
               exit 0
             fi
           done
@@ -79,17 +56,32 @@ jobs:
           echo "❌ Свободный диапазон не найден"
           exit 1
 
-      - name: Clean Terraform Cache
+      - name: Copy config to all dirs
         run: |
-          echo "=== Очистка кэша ==="
+          cp config.auto.tfvars template/
+          cp config.auto.tfvars master/
+          cp config.auto.tfvars worker/
+
+      - name: Update SSH key in configs
+        run: |
           for dir in template master worker; do
-            [ -d "$dir" ] && cd "$dir" && rm -rf .terraform .terraform.lock.hcl 2>/dev/null || true
-            cd ..
+            sed -i "s|ssh_public_key = \"\"|ssh_public_key = \"$SSH_PUB_KEY\"|" $dir/config.auto.tfvars
           done
 
-      - name: Terraform Apply All
+      - name: Terraform Apply
         run: |
-          for dir in template master worker; do
+          # Сначала шаблон
+          echo "=== Создаем шаблон ==="
+          cd template
+          terraform init
+          terraform apply -auto-approve -input=false
+          cd ..
+          
+          # Ждем создания шаблона
+          sleep 10
+          
+          # Потом master и worker
+          for dir in master worker; do
             echo "=== Работаем в $dir/ ==="
             cd "$dir"
             terraform init

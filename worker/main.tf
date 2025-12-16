@@ -60,7 +60,6 @@ resource "proxmox_vm_qemu" "k8s_worker" {
   ciuser       = var.cloud_init.user
   sshkeys      = file(var.ssh_public_key_path)
   
-  ipconfig0    = var.auto_static_ips ? "ip=${cidrhost(var.network_config.subnet, var.static_ip_base + var.cluster_config.masters_count + each.key)}/24,gw=${var.network_config.gateway}" : "ip=dhcp"
   
   nameserver   = join(" ", var.network_config.dns_servers)
   searchdomain = join(" ", var.cloud_init.search_domains)

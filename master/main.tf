@@ -22,6 +22,7 @@ resource "proxmox_vm_qemu" "k8s_master" {
   for_each = { for idx in local.master_indices : idx => idx }
 
   name        = "k8s-master-${var.vmid_ranges.masters.start + each.key}"
+  ipconfig0 = "ip=192.168.0.${var.static_ip_base}/24,gw=192.168.0.1"
   target_node = var.target_node
   vmid        = var.vmid_ranges.masters.start + each.key
   description = "K8s Master ${each.key + 1}"
@@ -59,7 +60,6 @@ resource "proxmox_vm_qemu" "k8s_master" {
   
   ciuser       = var.cloud_init.user
   sshkeys      = file(var.ssh_public_key_path)
-  ipconfig0    = var.auto_static_ips ? "ip=${cidrhost(var.network_config.subnet, var.static_ip_base + each.key)}/24,gw=${var.network_config.gateway}" : "ip=dhcp"
   nameserver   = join(" ", var.network_config.dns_servers)
   searchdomain = join(" ", var.cloud_init.search_domains)
   

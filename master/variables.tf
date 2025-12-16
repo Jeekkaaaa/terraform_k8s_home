@@ -101,3 +101,7 @@ variable "template_specs" {
 variable "ssh_public_key" {
   type = string
 }
+
+variable "static_ip_base" {
+  type = number
+}

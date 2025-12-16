@@ -3,10 +3,9 @@ output "template_id" {
 }
 
 output "template_name" {
-  value = "ubuntu-template"
+  value = proxmox_vm_qemu.ubuntu_template.name
 }
 
 output "template_ready" {
   value = true
-  description = "Template is ready for cloning"
 }
