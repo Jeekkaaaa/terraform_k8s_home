@@ -71,3 +71,42 @@ variable "cloud_init" {
     search_domains = list(string)
   })
 }
+
+variable "cluster_config" {
+  type = object({
+    masters_count = number
+    workers_count = number
+    cluster_name  = string
+    domain        = string
+  })
+}
+
+variable "vm_specs" {
+  type = object({
+    master = object({
+      cpu_cores          = number
+      cpu_sockets        = number
+      memory_mb          = number
+      disk_size_gb       = number
+      disk_storage       = string
+      disk_iothread      = bool
+      cloudinit_storage  = string
+    })
+    worker = object({
+      cpu_cores          = number
+      cpu_sockets        = number
+      memory_mb          = number
+      disk_size_gb       = number
+      disk_storage       = string
+      disk_iothread      = bool
+      cloudinit_storage  = string
+    })
+  })
+}
+
+variable "vmid_ranges" {
+  type = object({
+    masters = object({ start = number, end = number })
+    workers = object({ start = number, end = number })
+  })
+}

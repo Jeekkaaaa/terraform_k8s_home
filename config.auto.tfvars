@@ -87,3 +87,4 @@ static_ip_base  = 110
 template_vmid = 9000
 storage = "local-lvm"
 bridge = "vmbr0"
+ssh_public_key = ""
