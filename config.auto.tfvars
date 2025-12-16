@@ -66,3 +66,12 @@ bridge = "vmbr0"
 
 # Автоподбор IP (заполнится workflow)
 static_ip_base = 100
+
+# Характеристики шаблона
+template_specs = {
+  cpu_cores     = 2
+  cpu_sockets   = 1
+  memory_mb     = 2048
+  disk_size_gb  = 12
+  disk_iothread = true
+}

@@ -13,7 +13,6 @@ jobs:
           echo "=== Читаем конфигурацию сети ==="
           CONFIG="config.auto.tfvars"
           
-          # Извлекаем subnet из config
           SUBNET_LINE=$(grep 'subnet' "$CONFIG")
           SUBNET=$(echo "$SUBNET_LINE" | grep -o '"[^"]*"' | head -1 | tr -d '"')
           
@@ -37,7 +36,7 @@ jobs:
         run: |
           echo "=== Ищем свободные IP в $NETWORK_PREFIX.XXX ==="
           
-          NEEDED_IPS=3  # 1 master + 2 workers
+          NEEDED_IPS=3
           
           for start in $(seq 100 240); do
             FREE=true
@@ -51,9 +50,6 @@ jobs:
             
             if [ "$FREE" = true ]; then
               echo "✅ Найден свободный диапазон с $start"
-              echo "Master: $NETWORK_PREFIX.$start"
-              echo "Worker1: $NETWORK_PREFIX.$((start + 1))"
-              echo "Worker2: $NETWORK_PREFIX.$((start + 2))"
               echo "STATIC_IP_BASE=$start" >> $GITHUB_ENV
               exit 0
             fi
@@ -66,34 +62,22 @@ jobs:
         run: |
           echo "=== Обновляем основной config.auto.tfvars ==="
           
-          # 1. Обновляем static_ip_base
+          # Обновляем static_ip_base
           sed -i "s/static_ip_base = .*/static_ip_base = $STATIC_IP_BASE/" config.auto.tfvars
           
-          # 2. Обновляем ssh_public_key
+          # Обновляем ssh_public_key
           sed -i "s|ssh_public_key = \".*\"|ssh_public_key = \"$SSH_PUB_KEY\"|" config.auto.tfvars
           
           echo "Обновлено: static_ip_base = $STATIC_IP_BASE"
-          echo "Обновлено: ssh_public_key"
-
-      - name: Copy updated config to modules
-        run: |
-          echo "=== Копируем ОБНОВЛЕННЫЙ config в модули ==="
-          
-          # Копируем ТОЛЬКО после обновления!
-          cp config.auto.tfvars template/
-          cp config.auto.tfvars master/
-          cp config.auto.tfvars worker/
-          
-          echo "✅ Config скопирован во все модули"
 
       - name: Create Template
         run: |
           echo "=== Создаем шаблон Ubuntu ==="
           cd template
           terraform init
-          terraform apply -auto-approve -input=false -var-file="./config.auto.tfvars"
+          # Используем config из корня!
+          terraform apply -auto-approve -input=false -var-file="../config.auto.tfvars"
           cd ..
-          echo "✅ Шаблон создан, ждем 15 секунд..."
           sleep 15
 
       - name: Deploy Master and Workers
@@ -104,7 +88,8 @@ jobs:
             echo "--- $dir ---"
             cd "$dir"
             terraform init
-            terraform apply -auto-approve -input=false -var-file="./config.auto.tfvars"
+            # Используем config из корня!
+            terraform apply -auto-approve -input=false -var-file="../config.auto.tfvars"
             cd ..
           done
         env:
