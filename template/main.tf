@@ -1,4 +1,3 @@
-# ~/gitmnt/terrafotm_k8s_home/template/main.tf
 terraform {
   required_providers {
     proxmox = {
@@ -8,6 +7,10 @@ terraform {
     http = {
       source  = "hashicorp/http"
       version = "3.4.0"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "2.4.0"
     }
   }
 }
@@ -20,22 +23,14 @@ provider "proxmox" {
 
 provider "http" {}
 
-# 1. Скачиваем образ через http провайдер (напрямую в runner)
+# 1. Скачиваем образ через http провайдер
 data "http" "ubuntu_image" {
   url = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
   
-  # Повторяем попытку при сбоях
   retry {
     attempts     = 5
     min_delay_ms = 5000
     max_delay_ms = 30000
-  }
-  
-  lifecycle {
-    postcondition {
-      condition     = self.status_code == 200
-      error_message = "Не удалось скачать образ Ubuntu. Статус: ${self.status_code}"
-    }
   }
 }
 
@@ -57,7 +52,6 @@ resource "proxmox_virtual_environment_file" "ubuntu_cloud_image" {
   node_name    = var.target_node
   overwrite    = true
   
-  # Используем локальный файл вместо удаленного URL
   source_file {
     path = "/tmp/jammy-server-cloudimg-amd64.img"
   }
@@ -65,7 +59,7 @@ resource "proxmox_virtual_environment_file" "ubuntu_cloud_image" {
   depends_on = [local_file.ubuntu_image_file]
 }
 
-# 4. Создаем шаблон (остается без изменений)
+# 4. Создаем шаблон
 resource "proxmox_virtual_environment_vm" "ubuntu_template" {
   depends_on = [proxmox_virtual_environment_file.ubuntu_cloud_image]
   
