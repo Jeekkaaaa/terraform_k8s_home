@@ -5,8 +5,6 @@ pm_api_token_secret = ""
 
 # Основные
 target_node = "pve-k8s"
-ssh_public_key_path = "/root/.ssh/id_ed25519.pub"
-ssh_private_key_path = "/root/.ssh/id_ed25519"
 ssh_public_key = ""
 
 # Шаблон (создать вручную в Proxmox UI)

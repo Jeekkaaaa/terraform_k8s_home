@@ -71,10 +71,21 @@ jobs:
           sed -i "s|ssh_public_key = \"\"|ssh_public_key = \"$SSH_PUB_KEY\"|" config.auto.tfvars
           
           # Копируем в поддиректории
+          cp config.auto.tfvars template/
           cp config.auto.tfvars master/
           cp config.auto.tfvars worker/
 
-      - name: Terraform Init & Apply
+      - name: Create Template
+        run: |
+          echo "=== Создаем шаблон Ubuntu ==="
+          cd template
+          terraform init
+          terraform apply -auto-approve -input=false
+          cd ..
+          echo "✅ Шаблон создан, ждем 30 секунд..."
+          sleep 30
+
+      - name: Deploy Master and Workers
         run: |
           echo "=== Создаем Master и Worker ноды ==="
           
