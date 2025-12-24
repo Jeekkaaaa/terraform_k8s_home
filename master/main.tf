@@ -28,9 +28,8 @@ resource "proxmox_virtual_environment_vm" "k8s_master" {
   name      = "k8s-master-${var.vmid_ranges.masters.start}"
   node_name = var.target_node
   vm_id     = var.vmid_ranges.masters.start
-  started   = false  # ВЫКЛЮЧЕННАЯ
+  started   = false
 
-  # КЛОНИРУЕМ ИЗ ШАБЛОНА
   clone {
     vm_id = var.template_vmid
     node_name = var.target_node
@@ -46,14 +45,14 @@ resource "proxmox_virtual_environment_vm" "k8s_master" {
     dedicated = var.vm_specs.master.memory_mb
   }
 
-  # Диск (после клонирования увеличиваем если нужно)
+  # ВАЖНО: file_format = "raw" для LVM
   disk {
     datastore_id = var.vm_specs.master.disk_storage
     size         = var.vm_specs.master.disk_size_gb
     interface    = "scsi0"
+    file_format  = "raw"  # RAW для LVM хранилища!
   }
 
-  # Cloud-init с нашими настройками
   initialization {
     datastore_id = var.vm_specs.master.cloudinit_storage
 
@@ -81,14 +80,14 @@ resource "proxmox_virtual_environment_vm" "k8s_master" {
   }
 
   agent {
-    enabled = false  # Отключаем для скорости
+    enabled = false
   }
 
   boot_order = ["scsi0"]
   scsi_hardware = "virtio-scsi-pci"
   on_boot = true
 
-  timeout_create = 180  # 3 минуты на клонирование
+  timeout_create = 300
 
   lifecycle {
     ignore_changes = [
