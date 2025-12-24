@@ -21,13 +21,21 @@ provider "proxmox" {
 locals {
   subnet_parts = split(".", var.network_config.subnet)
   network_prefix = "${local.subnet_parts[0]}.${local.subnet_parts[1]}.${local.subnet_parts[2]}"
-  master_ip     = "${local.network_prefix}.${var.static_ip_base}"
+  
+  # Создаем список IP для master нод
+  master_ips = [
+    for i in range(var.cluster_config.masters_count) : 
+    "${local.network_prefix}.${var.static_ip_base + i}"
+  ]
 }
 
+# ДОБАВЛЕНО: Используем count вместо одного ресурса
 resource "proxmox_virtual_environment_vm" "k8s_master" {
-  name      = "k8s-master-${var.vmid_ranges.masters.start}"
+  count = var.cluster_config.masters_count  # <-- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ
+
+  name      = "k8s-master-${var.vmid_ranges.masters.start + count.index}"  # <-- Используем count.index
   node_name = var.target_node
-  vm_id     = var.vmid_ranges.masters.start
+  vm_id     = var.vmid_ranges.masters.start + count.index  # <-- Используем count.index
   started   = false
 
   clone {
@@ -68,7 +76,7 @@ resource "proxmox_virtual_environment_vm" "k8s_master" {
 
     ip_config {
       ipv4 {
-        address = "${local.master_ip}/24"
+        address = "${local.master_ips[count.index]}/24"  # <-- Используем массив IP
         gateway = var.network_config.gateway
       }
     }
@@ -97,6 +105,6 @@ resource "proxmox_virtual_environment_vm" "k8s_master" {
   }
 }
 
-output "master_ip" {
-  value = local.master_ip
+output "master_ips" {
+  value = local.master_ips
 }

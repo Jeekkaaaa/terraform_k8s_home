@@ -23,7 +23,7 @@ locals {
   network_prefix = "${local.subnet_parts[0]}.${local.subnet_parts[1]}.${local.subnet_parts[2]}"
   worker_ips = [
     for i in range(var.cluster_config.workers_count) : 
-    "${local.network_prefix}.${var.static_ip_base + 1 + i}"
+    "${local.network_prefix}.${var.static_ip_base + var.cluster_config.masters_count + i}"
   ]
 }
 
@@ -33,7 +33,7 @@ resource "proxmox_virtual_environment_vm" "k8s_worker" {
   name      = "k8s-worker-${var.vmid_ranges.workers.start + count.index}"
   node_name = var.target_node
   vm_id     = var.vmid_ranges.workers.start + count.index
-  started   = false  # ВЫКЛЮЧЕННАЯ
+  started   = false
 
   clone {
     vm_id = var.template_vmid
@@ -54,7 +54,7 @@ resource "proxmox_virtual_environment_vm" "k8s_worker" {
     datastore_id = var.vm_specs.worker.disk_storage
     size         = var.vm_specs.worker.disk_size_gb
     interface    = "scsi0"
-    file_format  = "raw"  # RAW для LVM хранилища!
+    file_format  = "raw"
   }
 
   initialization {
