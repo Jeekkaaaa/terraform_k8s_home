@@ -54,6 +54,7 @@ resource "proxmox_virtual_environment_vm" "k8s_worker" {
     datastore_id = var.vm_specs.worker.disk_storage
     size         = var.vm_specs.worker.disk_size_gb
     interface    = "scsi0"
+    file_format  = "raw"  # RAW для LVM хранилища!
   }
 
   initialization {
