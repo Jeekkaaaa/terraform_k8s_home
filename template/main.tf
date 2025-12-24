@@ -75,9 +75,10 @@ resource "terraform_data" "create_proper_template" {
       "qm set ${var.template_vmid} --ide2 ${var.storage_vm}:cloudinit",
       "qm set ${var.template_vmid} --ciuser ${var.cloud_init.user}",
       
-      "# 7. Добавляем SSH ключ ПРАВИЛЬНО - используем переменную напрямую",
-      "SSH_KEY=\"${replace(var.ssh_public_key, "\"", "\\\"")}\"",
-      "qm set ${var.template_vmid} --sshkeys \"$SSH_KEY\"",
+      "# 7. Добавляем SSH ключ - самый простой и надежный способ через временный файл
+      echo '${var.ssh_public_key}' > /tmp/ssh_key_${var.template_vmid}.txt",
+      "qm set ${var.template_vmid} --sshkeys /tmp/ssh_key_${var.template_vmid}.txt",
+      "rm -f /tmp/ssh_key_${var.template_vmid}.txt",
       
       "# 8. Настройки сети",
       "qm set ${var.template_vmid} --ipconfig0 ip=dhcp",
@@ -92,7 +93,7 @@ resource "terraform_data" "create_proper_template" {
       
       "# 11. Проверяем что ключ добавлен",
       "echo 'Проверяем SSH ключ в шаблоне:'",
-      "qm config ${var.template_vmid} | grep -A2 sshkeys",
+      "qm config ${var.template_vmid} | grep sshkeys",
       
       "echo '✅ Шаблон ${var.template_vmid} создан с UEFI загрузкой и SSH ключом'"
     ]
