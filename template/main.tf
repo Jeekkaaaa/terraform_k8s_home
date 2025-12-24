@@ -18,12 +18,33 @@ provider "proxmox" {
   }
 }
 
-# 1. Создание ПУСТОЙ ВМ с минимальным диском
+# 1. УДАЛЯЕМ старый шаблон если есть
+resource "terraform_data" "cleanup_old_template" {
+  connection {
+    type     = "ssh"
+    user     = var.proxmox_ssh_username
+    password = var.proxmox_ssh_password
+    host     = regex("//([^:/]+)", var.pm_api_url)[0]
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "echo '=== Удаляем старый шаблон 9001 если существует ==='",
+      "qm destroy ${var.template_vmid} --purge 2>/dev/null || true",
+      "sleep 2",
+      "echo 'Старый шаблон удален'"
+    ]
+  }
+}
+
+# 2. Создание ПУСТОЙ ВМ для шаблона
 resource "proxmox_virtual_environment_vm" "ubuntu_template" {
+  depends_on = [terraform_data.cleanup_old_template]
+  
   name      = "ubuntu-template"
   node_name = var.target_node
   vm_id     = var.template_vmid
-  started   = false  # ВЫКЛЮЧЕННАЯ
+  started   = false
 
   cpu {
     cores   = var.template_specs.cpu_cores
@@ -69,21 +90,13 @@ resource "proxmox_virtual_environment_vm" "ubuntu_template" {
 
   agent {
     enabled = true
-    type    = "virtio"
   }
 
   template = false
-
-  lifecycle {
-    ignore_changes = [
-      disk[0].size,
-      network_device,
-    ]
-  }
 }
 
-# 2. SSH команды для скачивания и импорта Cloud-образа
-resource "terraform_data" "download_and_import" {
+# 3. SSH команды для создания ПРАВИЛЬНОГО шаблона
+resource "terraform_data" "create_proper_template" {
   depends_on = [proxmox_virtual_environment_vm.ubuntu_template]
 
   connection {
@@ -91,52 +104,49 @@ resource "terraform_data" "download_and_import" {
     user     = var.proxmox_ssh_username
     password = var.proxmox_ssh_password
     host     = regex("//([^:/]+)", var.pm_api_url)[0]
-    timeout  = "1200s"  # 20 минут на скачивание + импорт
+    timeout  = "1200s"
   }
 
   provisioner "remote-exec" {
     inline = [
-      "echo '=== Шаг 1: Скачивание Cloud-образа ==='",
+      "set -ex",  # Выход при любой ошибке
+      
+      "echo '=== Шаг 1: Скачиваем Ubuntu Cloud образ ==='",
       "cd /var/lib/vz/template/iso/",
       "if [ ! -f jammy-server-cloudimg-amd64.img ]; then",
-      "  echo 'Скачиваем образ...'",
-      "  wget -q --show-progress -O jammy-server-cloudimg-amd64.img https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img",
-      "else",
-      "  echo 'Образ уже существует'",
+      "  echo 'Скачиваем...'",
+      "  wget -q --show-progress https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img",
       "fi",
       
-      "echo '=== Шаг 2: Проверяем ВМ ${var.template_vmid} ==='",
-      "qm status ${var.template_vmid} || { echo 'ВМ не существует'; exit 1; }",
-      
-      "echo '=== Шаг 3: Удаляем временный диск ==='",
+      "echo '=== Шаг 2: Удаляем временный диск 1GB ==='",
       "qm set ${var.template_vmid} --delete scsi0 2>/dev/null || true",
       "sleep 2",
       
-      "echo '=== Шаг 4: Импортируем Cloud-образ ==='",
-      "qm importdisk ${var.template_vmid} /var/lib/vz/template/iso/jammy-server-cloudimg-amd64.img ${var.storage_vm} --format raw",
+      "echo '=== Шаг 3: Импортируем Cloud-образ как RAW диск ==='",
+      "qm importdisk ${var.template_vmid} jammy-server-cloudimg-amd64.img ${var.storage_vm} --format raw",
       
-      "echo '=== Шаг 5: Настраиваем диск как загрузочный ==='",
-      "qm set ${var.template_vmid} --scsi0 ${var.storage_vm}:vm-${var.template_vmid}-disk-0,boot=on",
+      "echo '=== Шаг 4: Подключаем импортированный диск как scsi0 ==='",
+      "qm set ${var.template_vmid} --scsi0 ${var.storage_vm}:vm-${var.template_vmid}-disk-0",
+      
+      "echo '=== Шаг 5: Устанавливаем размер диска ${var.template_specs.disk_size_gb}GB ==='",
+      "qm resize ${var.template_vmid} scsi0 ${var.template_specs.disk_size_gb}G",
+      
+      "echo '=== Шаг 6: Настраиваем загрузку ==='",
       "qm set ${var.template_vmid} --boot order=scsi0",
       "qm set ${var.template_vmid} --scsihw virtio-scsi-pci",
-      
-      "echo '=== Шаг 6: Настраиваем cloud-init ==='",
-      "qm set ${var.template_vmid} --ide2 ${var.storage_vm}:cloudinit",
-      "qm set ${var.template_vmid} --ciuser ${var.cloud_init.user}",
-      "qm set ${var.template_vmid} --sshkeys '${replace(var.ssh_public_key, "'", "'\"'\"'")}'",
-      "qm set ${var.template_vmid} --ipconfig0 ip=dhcp",
-      "qm set ${var.template_vmid} --nameserver '${join(" ", var.network_config.dns_servers)}'",
-      "qm set ${var.template_vmid} --searchdomain '${var.cloud_init.search_domains[0]}'",
       
       "echo '=== Шаг 7: Конвертируем в шаблон ==='",
       "qm template ${var.template_vmid}",
       
-      "echo '=== Шаблон ${var.template_vmid} готов! ==='"
+      "echo '=== Шаг 8: Проверяем шаблон ==='",
+      "qm config ${var.template_vmid} | grep -E '(scsi0|boot|template)'",
+      
+      "echo '✅ Шаблон ${var.template_vmid} создан правильно!'"
     ]
   }
 }
 
 output "template_ready" {
-  value = "Шаблон ${var.template_vmid} создан и готов к использованию"
-  depends_on = [terraform_data.download_and_import]
+  value = "Template ${var.template_vmid} created with Cloud image"
+  depends_on = [terraform_data.create_proper_template]
 }
