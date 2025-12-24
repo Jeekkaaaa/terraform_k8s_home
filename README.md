@@ -31,19 +31,19 @@
 
 terrafotm_k8s_home/
 ├── .gitea/
-│   └── workflows/
-│       └── deploy-master.yml    # CI/CD пайплайн
-├── config.auto.tfvars           # Основная конфигурация
-├── variables.tf                 # Общие переменные Terraform
-├── template/                    # Шаблон ВМ (9001)
-│   ├── main.tf                  
-│   └── variables.tf
-├── master/                      # Master ноды
-│   ├── main.tf                 # Terraform для master
-│   └── variables.tf
-└── worker/                      # Worker ноды
-    ├── main.tf                 # Terraform для workers
-    └── variables.tf
+│ └── workflows/
+│ └── deploy-master.yml # CI/CD пайплайн
+├── config.auto.tfvars # Основная конфигурация
+├── variables.tf # Общие переменные Terraform
+├── template/ # Шаблон ВМ (9001)
+│ ├── main.tf # Создание шаблона
+│ └── variables.tf # Переменные шаблона
+├── master/ # Master ноды
+│ ├── main.tf # Terraform для master
+│ └── variables.tf # Переменные master
+└── worker/ # Worker ноды
+├── main.tf # Terraform для workers
+└── variables.tf # Переменные workers
 
 ## ⚙️ Предварительная настройка
 
