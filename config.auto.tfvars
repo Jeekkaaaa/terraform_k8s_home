@@ -6,8 +6,8 @@ template_vmid = 9001
 
 # Кластер
 cluster_config = {
-  masters_count = 2
-  workers_count = 1
+  masters_count = 1
+  workers_count = 3
   cluster_name  = "home-k8s-cluster"
   domain        = "home.lab"
 }
@@ -24,7 +24,7 @@ vm_specs = {
     cpu_cores          = 2
     cpu_sockets        = 1
     memory_mb          = 4096
-    disk_size_gb       = 30
+    disk_size_gb       = 20
     disk_storage       = "local-lvm"
     disk_iothread      = true
     cloudinit_storage  = "local-lvm"

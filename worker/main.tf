@@ -33,7 +33,7 @@ resource "proxmox_virtual_environment_vm" "k8s_worker" {
   name      = "k8s-worker-${var.vmid_ranges.workers.start + count.index}"
   node_name = var.target_node
   vm_id     = var.vmid_ranges.workers.start + count.index
-  started   = false
+  started   = true
 
   clone {
     vm_id = var.template_vmid

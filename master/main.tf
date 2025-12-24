@@ -36,7 +36,7 @@ resource "proxmox_virtual_environment_vm" "k8s_master" {
   name      = "k8s-master-${var.vmid_ranges.masters.start + count.index}"  # <-- Используем count.index
   node_name = var.target_node
   vm_id     = var.vmid_ranges.masters.start + count.index  # <-- Используем count.index
-  started   = false
+  started   = true
 
   clone {
     vm_id = var.template_vmid
