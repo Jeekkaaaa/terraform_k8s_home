@@ -18,10 +18,12 @@ provider "proxmox" {
   }
 }
 
-# Локальные вычисления
+# Локальные вычисления - ИСПРАВЛЕННЫЙ РАСЧЕТ IP
 locals {
-  subnet_prefix = split(".", var.network_config.subnet)[0]
-  master_ip     = "${local.subnet_prefix}.${var.static_ip_base}"
+  # Получаем первые 3 октета подсети (192.168.0)
+  subnet_parts = split(".", var.network_config.subnet)
+  network_prefix = "${local.subnet_parts[0]}.${local.subnet_parts[1]}.${local.subnet_parts[2]}"
+  master_ip     = "${local.network_prefix}.${var.static_ip_base}"
 }
 
 resource "proxmox_virtual_environment_vm" "k8s_master" {

@@ -18,12 +18,13 @@ provider "proxmox" {
   }
 }
 
-# Локальные вычисления
+# Локальные вычисления - ИСПРАВЛЕННЫЙ РАСЧЕТ IP
 locals {
-  subnet_prefix = split(".", var.network_config.subnet)[0]
+  subnet_parts = split(".", var.network_config.subnet)
+  network_prefix = "${local.subnet_parts[0]}.${local.subnet_parts[1]}.${local.subnet_parts[2]}"
   worker_ips = [
     for i in range(var.cluster_config.workers_count) : 
-    "${local.subnet_prefix}.${var.static_ip_base + 1 + i}"
+    "${local.network_prefix}.${var.static_ip_base + 1 + i}"
   ]
 }
 

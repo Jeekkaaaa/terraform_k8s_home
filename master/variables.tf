@@ -108,3 +108,25 @@ variable "template_specs" {
   })
   description = "Характеристики шаблона"
 }
+
+# Добавляем ВСЕ переменные которые есть в config.auto.tfvars
+variable "storage_vm" {
+  type        = string
+  description = "Хранилище для дисков ВМ"
+}
+
+variable "storage_iso" {
+  type        = string
+  description = "Хранилище для ISO образов"
+}
+
+variable "template_specs" {
+  type = object({
+    cpu_cores     = number
+    cpu_sockets   = number
+    memory_mb     = number
+    disk_size_gb  = number
+    disk_iothread = bool
+  })
+  description = "Характеристики шаблона"
+}
